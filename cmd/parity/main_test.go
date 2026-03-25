@@ -2,10 +2,62 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"reflect"
+	"strings"
 	"testing"
+
+	"github.com/bkawk/ryft-go"
 )
+
+func newParityClient(t *testing.T, handler http.HandlerFunc) *ryft.Client {
+	t.Helper()
+
+	server := httptest.NewServer(handler)
+	t.Cleanup(server.Close)
+
+	client, err := ryft.NewClient(ryft.Config{
+		SecretKey: "sk_sandbox_123",
+		BaseURL:   server.URL,
+	})
+	if err != nil {
+		t.Fatalf("NewClient returned error: %v", err)
+	}
+
+	return client
+}
+
+func captureStdout(t *testing.T, fn func()) string {
+	t.Helper()
+
+	originalStdout := os.Stdout
+	reader, writer, err := os.Pipe()
+	if err != nil {
+		t.Fatalf("os.Pipe returned error: %v", err)
+	}
+
+	os.Stdout = writer
+	defer func() {
+		os.Stdout = originalStdout
+	}()
+
+	fn()
+
+	if err := writer.Close(); err != nil {
+		t.Fatalf("writer.Close returned error: %v", err)
+	}
+
+	output, err := io.ReadAll(reader)
+	if err != nil {
+		t.Fatalf("ReadAll returned error: %v", err)
+	}
+
+	return string(output)
+}
 
 func TestCustomerCreateRequest(t *testing.T) {
 	t.Parallel()
@@ -371,5 +423,150 @@ func TestPrintJSON(t *testing.T) {
 	}
 	if got := buffer.String(); got == "" || got[0] != '{' {
 		t.Fatalf("printJSON output = %q, want json content", got)
+	}
+}
+
+func TestRunUsageAndValidationErrors(t *testing.T) {
+	t.Setenv("RYFT_SECRET_KEY", "sk_sandbox_123")
+
+	testCases := []struct {
+		name    string
+		args    []string
+		wantErr string
+	}{
+		{
+			name:    "no args",
+			args:    nil,
+			wantErr: "usage: parity <customer-create|customer-update|entity-get> ...",
+		},
+		{
+			name:    "unknown command",
+			args:    []string{"unknown"},
+			wantErr: "unknown command: unknown",
+		},
+		{
+			name:    "customer create usage",
+			args:    []string{"customer-create"},
+			wantErr: "usage: parity customer-create <email> [first-name] [last-name] [metadata-json]",
+		},
+		{
+			name:    "payment session update invalid amount",
+			args:    []string{"payment-session-update", "ps_123", "oops"},
+			wantErr: "parse amount:",
+		},
+		{
+			name:    "subscription pause invalid resume timestamp",
+			args:    []string{"subscription-pause", "sub_123", "reason", "oops"},
+			wantErr: "parse resume-timestamp:",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := run(context.Background(), testCase.args)
+			if err == nil {
+				t.Fatal("run error = nil, want error")
+			}
+			if !strings.Contains(err.Error(), testCase.wantErr) {
+				t.Fatalf("run error = %q, want substring %q", err.Error(), testCase.wantErr)
+			}
+		})
+	}
+}
+
+func TestHandleEntityGetValidationErrors(t *testing.T) {
+	t.Parallel()
+
+	client := newParityClient(t, func(w http.ResponseWriter, r *http.Request) {
+		t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+	})
+
+	testCases := []struct {
+		name       string
+		entityType string
+		entityID   string
+		parentID   string
+		wantErr    string
+	}{
+		{
+			name:       "person requires parent",
+			entityType: "person",
+			entityID:   "per_123",
+			wantErr:    "person requires parent account id",
+		},
+		{
+			name:       "payout method requires parent",
+			entityType: "payout-method",
+			entityID:   "pmo_123",
+			wantErr:    "payout-method requires parent account id",
+		},
+		{
+			name:       "payment transaction requires parent",
+			entityType: "payment-transaction",
+			entityID:   "txn_123",
+			wantErr:    "payment-transaction requires parent payment-session id",
+		},
+		{
+			name:       "unsupported type",
+			entityType: "mystery",
+			entityID:   "id_123",
+			wantErr:    "unsupported entity type: mystery",
+		},
+	}
+
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := handleEntityGet(context.Background(), client, testCase.entityType, testCase.entityID, testCase.parentID)
+			if err == nil {
+				t.Fatal("handleEntityGet error = nil, want error")
+			}
+			if err.Error() != testCase.wantErr {
+				t.Fatalf("handleEntityGet error = %q, want %q", err.Error(), testCase.wantErr)
+			}
+		})
+	}
+}
+
+func TestHandleEntityGetSuccess(t *testing.T) {
+	t.Parallel()
+
+	client := newParityClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch r.URL.Path {
+		case "/customers/cus_123":
+			_, _ = io.WriteString(w, `{"id":"cus_123","email":"jane@example.com"}`)
+		case "/events/evt_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"evt_123","accountId":"ac_123"}`)
+		default:
+			t.Fatalf("unexpected path: %s", r.URL.Path)
+		}
+	})
+
+	customerOutput := captureStdout(t, func() {
+		if err := handleEntityGet(context.Background(), client, "customer", "cus_123", ""); err != nil {
+			t.Fatalf("handleEntityGet customer returned error: %v", err)
+		}
+	})
+	if !strings.Contains(customerOutput, `"id": "cus_123"`) {
+		t.Fatalf("customer output = %q, want customer id", customerOutput)
+	}
+
+	eventOutput := captureStdout(t, func() {
+		if err := handleEntityGet(context.Background(), client, "event", "evt_123", "ac_123"); err != nil {
+			t.Fatalf("handleEntityGet event returned error: %v", err)
+		}
+	})
+	if !strings.Contains(eventOutput, `"accountId": "ac_123"`) {
+		t.Fatalf("event output = %q, want account id", eventOutput)
 	}
 }
