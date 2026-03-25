@@ -54,6 +54,30 @@ export RYFT_SECRET_KEY=sk_sandbox_your_secret_key
 go run ./examples/basic
 ```
 
+## HTTP Server Example
+
+There is also a small Gin example that shows how to initialize the SDK once at startup, bind an incoming request, call Ryft, and translate `*ryft.APIError` into an HTTP response:
+
+```bash
+export RYFT_SECRET_KEY=sk_sandbox_your_secret_key
+go run ./examples/http-gin
+```
+
+Then create a customer through the local server:
+
+```bash
+curl -X POST http://localhost:8080/customers \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "sdk-example@ryftpay.test",
+    "firstName": "Gin",
+    "lastName": "Example",
+    "metadata": {
+      "source": "http-gin"
+    }
+  }'
+```
+
 ## Configuration
 
 `ryft.NewClient` accepts:
