@@ -175,6 +175,24 @@ func run(ctx context.Context, args []string) error {
 
 		printJSON(os.Stdout, webhooks)
 		return nil
+	case "in-person-location-list":
+		if len(args) < 2 {
+			return errors.New("usage: ryft-dev in-person-location-list <limit> [account-id]")
+		}
+		limit, err := parseIntArg(args[1], "limit")
+		if err != nil {
+			return err
+		}
+		accountID := ""
+		if len(args) > 2 {
+			accountID = args[2]
+		}
+		locations, err := client.InPersonLocations.ListForAccount(ctx, false, limit, "", accountID)
+		if err != nil {
+			return err
+		}
+		printJSON(os.Stdout, locations)
+		return nil
 	case "account-create":
 		if len(args) < 3 {
 			return errors.New("usage: ryft-dev account-create <entity-type> <email> [metadata-json] [mode] [onboarding-flow]")
@@ -723,6 +741,13 @@ func handleEntityGet(ctx context.Context, client *ryft.Client, entityType string
 			return err
 		}
 		printJSON(os.Stdout, dispute)
+		return nil
+	case "in-person-location":
+		location, err := client.InPersonLocations.GetForAccount(ctx, entityID, parentID)
+		if err != nil {
+			return err
+		}
+		printJSON(os.Stdout, location)
 		return nil
 	default:
 		return fmt.Errorf("unsupported entity type: %s", entityType)

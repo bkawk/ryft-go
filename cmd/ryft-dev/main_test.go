@@ -657,6 +657,8 @@ func TestHandleEntityGetSuccess(t *testing.T) {
 				t.Fatalf("Account header = %q, want %q", got, "ac_123")
 			}
 			_, _ = io.WriteString(w, `{"id":"evt_123","accountId":"ac_123"}`)
+		case "/in-person/locations/iploc_123":
+			_, _ = io.WriteString(w, `{"id":"iploc_123","name":"Harness Location"}`)
 		default:
 			t.Fatalf("unexpected path: %s", r.URL.Path)
 		}
@@ -678,5 +680,14 @@ func TestHandleEntityGetSuccess(t *testing.T) {
 	})
 	if !strings.Contains(eventOutput, `"accountId": "ac_123"`) {
 		t.Fatalf("event output = %q, want account id", eventOutput)
+	}
+
+	locationOutput := captureStdout(t, func() {
+		if err := handleEntityGet(context.Background(), client, "in-person-location", "iploc_123", ""); err != nil {
+			t.Fatalf("handleEntityGet in-person-location returned error: %v", err)
+		}
+	})
+	if !strings.Contains(locationOutput, `"id": "iploc_123"`) {
+		t.Fatalf("location output = %q, want location id", locationOutput)
 	}
 }
