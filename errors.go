@@ -30,27 +30,8 @@ func (e *APIError) Error() string {
 }
 
 func parseAPIError(status int, body []byte) error {
-	var parsed APIError
-	parsed.Status = status
-
-	var raw map[string]any
-	if err := json.Unmarshal(body, &raw); err == nil {
-		if value, ok := raw["code"].(string); ok {
-			parsed.Code = value
-		}
-		if value, ok := raw["message"].(string); ok {
-			parsed.Message = value
-		}
-		if value, ok := raw["requestId"].(string); ok {
-			parsed.RequestID = value
-		}
-		if value, ok := raw["errors"]; ok {
-			encoded, marshalErr := json.Marshal(value)
-			if marshalErr == nil {
-				_ = json.Unmarshal(encoded, &parsed.Errors)
-			}
-		}
-	}
+	parsed := APIError{Status: status}
+	_ = json.Unmarshal(body, &parsed)
 
 	if parsed.Message == "" {
 		parsed.Message = string(body)

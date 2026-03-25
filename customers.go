@@ -1,6 +1,10 @@
 package ryft
 
-import "context"
+import (
+	"context"
+	"net/http"
+	"strconv"
+)
 
 type CustomersService struct {
 	client *Client
@@ -22,6 +26,13 @@ type CustomerList struct {
 	Items []Customer `json:"items"`
 }
 
+type CustomerListParams struct {
+	ListParams
+	Email          string
+	StartTimestamp int
+	EndTimestamp   int
+}
+
 type CreateCustomerRequest struct {
 	Email     string            `json:"email"`
 	FirstName string            `json:"firstName,omitempty"`
@@ -36,7 +47,7 @@ type UpdateCustomerRequest struct {
 }
 
 func (s *CustomersService) Create(ctx context.Context, request CreateCustomerRequest) (*Customer, error) {
-	req, err := s.client.newRequest(ctx, "POST", "customers", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "customers", request)
 	if err != nil {
 		return nil, err
 	}
@@ -49,27 +60,19 @@ func (s *CustomersService) Create(ctx context.Context, request CreateCustomerReq
 	return &customer, nil
 }
 
-func (s *CustomersService) List(
-	ctx context.Context,
-	email string,
-	startTimestamp int,
-	endTimestamp int,
-	ascending bool,
-	limit int,
-	startsAfter string,
-) (*CustomerList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	if email != "" {
-		query.Set("email", email)
+func (s *CustomersService) List(ctx context.Context, params CustomerListParams) (*CustomerList, error) {
+	query := buildListQuery(params.ListParams)
+	if params.Email != "" {
+		query.Set("email", params.Email)
 	}
-	if startTimestamp > 0 {
-		query.Set("startTimestamp", itoa(startTimestamp))
+	if params.StartTimestamp > 0 {
+		query.Set("startTimestamp", strconv.Itoa(params.StartTimestamp))
 	}
-	if endTimestamp > 0 {
-		query.Set("endTimestamp", itoa(endTimestamp))
+	if params.EndTimestamp > 0 {
+		query.Set("endTimestamp", strconv.Itoa(params.EndTimestamp))
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "customers", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "customers", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +86,7 @@ func (s *CustomersService) List(
 }
 
 func (s *CustomersService) Get(ctx context.Context, customerID string) (*Customer, error) {
-	req, err := s.client.newRequest(ctx, "GET", "customers/"+customerID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "customers/"+customerID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -97,7 +100,7 @@ func (s *CustomersService) Get(ctx context.Context, customerID string) (*Custome
 }
 
 func (s *CustomersService) Update(ctx context.Context, customerID string, request UpdateCustomerRequest) (*Customer, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "customers/"+customerID, request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "customers/"+customerID, request)
 	if err != nil {
 		return nil, err
 	}
@@ -111,7 +114,7 @@ func (s *CustomersService) Update(ctx context.Context, customerID string, reques
 }
 
 func (s *CustomersService) Delete(ctx context.Context, customerID string) (*DeletedResource, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "customers/"+customerID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "customers/"+customerID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -125,7 +128,7 @@ func (s *CustomersService) Delete(ctx context.Context, customerID string) (*Dele
 }
 
 func (s *CustomersService) GetPaymentMethods(ctx context.Context, customerID string) (*CustomerPaymentMethodList, error) {
-	req, err := s.client.newRequest(ctx, "GET", "customers/"+customerID+"/payment-methods", nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "customers/"+customerID+"/payment-methods", nil)
 	if err != nil {
 		return nil, err
 	}

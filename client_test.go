@@ -91,7 +91,7 @@ func TestEventsListSetsAccountHeader(t *testing.T) {
 		t.Fatalf("NewClient returned error: %v", err)
 	}
 
-	if _, err := client.Events.List(context.Background(), false, 50, "ac_test_123"); err != nil {
+	if _, err := client.Events.List(context.Background(), EventListParams{ListParams: ListParams{Ascending: false, Limit: 50}}, WithAccount("ac_test_123")); err != nil {
 		t.Fatalf("Events.List returned error: %v", err)
 	}
 }

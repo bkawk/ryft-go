@@ -88,6 +88,33 @@ curl -X POST http://localhost:8080/customers \
 
 If `BaseURL` is omitted, the SDK selects the Ryft sandbox or live API automatically from the secret key prefix.
 
+## API Style
+
+The SDK uses small params structs for list-style endpoints and request options for optional per-request behavior.
+
+List example:
+
+```go
+customers, err := client.Customers.List(ctx, ryft.CustomerListParams{
+	ListParams: ryft.ListParams{
+		Ascending:   true,
+		Limit:       10,
+		StartsAfter: "cus_prev",
+	},
+	Email: "sdk-example@example.test",
+})
+```
+
+Account-scoped example:
+
+```go
+paymentSession, err := client.PaymentSessions.Get(
+	ctx,
+	"ps_123",
+	ryft.WithAccount("ac_123"),
+)
+```
+
 ## API Surface
 
 - customers: create, list, get, update, delete
@@ -155,6 +182,18 @@ if err != nil {
 
 	log.Fatal(err)
 }
+```
+
+## More Examples
+
+List events for a connected account:
+
+```go
+events, err := client.Events.List(ctx, ryft.EventListParams{
+	ListParams: ryft.ListParams{
+		Limit: 50,
+	},
+}, ryft.WithAccount("ac_123"))
 ```
 
 ## Development

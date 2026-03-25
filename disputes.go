@@ -2,7 +2,9 @@ package ryft
 
 import (
 	"context"
-	"net/url"
+	"encoding/json"
+	"net/http"
+	"strconv"
 )
 
 type DisputesService struct {
@@ -10,12 +12,12 @@ type DisputesService struct {
 }
 
 type Dispute struct {
-	ID               string         `json:"id,omitempty"`
-	Status           string         `json:"status,omitempty"`
-	Category         string         `json:"category,omitempty"`
-	CreatedTimestamp int            `json:"createdTimestamp,omitempty"`
-	Reason           map[string]any `json:"reason,omitempty"`
-	Files            map[string]any `json:"files,omitempty"`
+	ID               string          `json:"id,omitempty"`
+	Status           string          `json:"status,omitempty"`
+	Category         string          `json:"category,omitempty"`
+	CreatedTimestamp int             `json:"createdTimestamp,omitempty"`
+	Reason           json.RawMessage `json:"reason,omitempty"`
+	Files            json.RawMessage `json:"files,omitempty"`
 }
 
 type DisputeList struct {
@@ -31,30 +33,22 @@ type DeleteDisputeEvidenceRequest struct {
 	Files []string `json:"files"`
 }
 
-func (s *DisputesService) List(
-	ctx context.Context,
-	startTimestamp int,
-	endTimestamp int,
-	ascending bool,
-	limit int,
-	startsAfter string,
-) (*DisputeList, error) {
-	query := url.Values{}
-	if startTimestamp > 0 {
-		query.Set("startTimestamp", itoa(startTimestamp))
+type DisputeListParams struct {
+	ListParams
+	StartTimestamp int
+	EndTimestamp   int
+}
+
+func (s *DisputesService) List(ctx context.Context, params DisputeListParams) (*DisputeList, error) {
+	query := buildListQuery(params.ListParams)
+	if params.StartTimestamp > 0 {
+		query.Set("startTimestamp", strconv.Itoa(params.StartTimestamp))
 	}
-	if endTimestamp > 0 {
-		query.Set("endTimestamp", itoa(endTimestamp))
-	}
-	query.Set("ascending", boolString(ascending))
-	if limit > 0 {
-		query.Set("limit", itoa(limit))
-	}
-	if startsAfter != "" {
-		query.Set("startsAfter", startsAfter)
+	if params.EndTimestamp > 0 {
+		query.Set("endTimestamp", strconv.Itoa(params.EndTimestamp))
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "disputes", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "disputes", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -67,7 +61,7 @@ func (s *DisputesService) List(
 }
 
 func (s *DisputesService) Get(ctx context.Context, disputeID string) (*Dispute, error) {
-	req, err := s.client.newRequest(ctx, "GET", "disputes/"+disputeID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "disputes/"+disputeID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -80,7 +74,7 @@ func (s *DisputesService) Get(ctx context.Context, disputeID string) (*Dispute, 
 }
 
 func (s *DisputesService) Accept(ctx context.Context, disputeID string) (*Dispute, error) {
-	req, err := s.client.newRequest(ctx, "POST", "disputes/"+disputeID+"/accept", nil)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "disputes/"+disputeID+"/accept", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -93,7 +87,7 @@ func (s *DisputesService) Accept(ctx context.Context, disputeID string) (*Disput
 }
 
 func (s *DisputesService) Challenge(ctx context.Context, disputeID string) (*Dispute, error) {
-	req, err := s.client.newRequest(ctx, "POST", "disputes/"+disputeID+"/challenge", nil)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "disputes/"+disputeID+"/challenge", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -106,7 +100,7 @@ func (s *DisputesService) Challenge(ctx context.Context, disputeID string) (*Dis
 }
 
 func (s *DisputesService) AddEvidence(ctx context.Context, disputeID string, request AddDisputeEvidenceRequest) (*Dispute, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "disputes/"+disputeID+"/evidence", request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "disputes/"+disputeID+"/evidence", request)
 	if err != nil {
 		return nil, err
 	}
@@ -119,7 +113,7 @@ func (s *DisputesService) AddEvidence(ctx context.Context, disputeID string, req
 }
 
 func (s *DisputesService) DeleteEvidence(ctx context.Context, disputeID string, request DeleteDisputeEvidenceRequest) (*Dispute, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "disputes/"+disputeID+"/evidence", request)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "disputes/"+disputeID+"/evidence", request)
 	if err != nil {
 		return nil, err
 	}

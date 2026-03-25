@@ -2,6 +2,7 @@ package ryft
 
 import (
 	"context"
+	"net/http"
 )
 
 type PayoutMethodsService struct {
@@ -39,8 +40,12 @@ type UpdatePayoutMethodRequest struct {
 	BankAccount BankAccountDetails `json:"bankAccount"`
 }
 
+type PayoutMethodListParams struct {
+	ListParams
+}
+
 func (s *PayoutMethodsService) Create(ctx context.Context, accountID string, request CreatePayoutMethodRequest) (*PayoutMethod, error) {
-	req, err := s.client.newRequest(ctx, "POST", "accounts/"+accountID+"/payout-methods", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "accounts/"+accountID+"/payout-methods", request)
 	if err != nil {
 		return nil, err
 	}
@@ -54,7 +59,7 @@ func (s *PayoutMethodsService) Create(ctx context.Context, accountID string, req
 }
 
 func (s *PayoutMethodsService) Get(ctx context.Context, accountID string, payoutMethodID string) (*PayoutMethod, error) {
-	req, err := s.client.newRequest(ctx, "GET", "accounts/"+accountID+"/payout-methods/"+payoutMethodID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "accounts/"+accountID+"/payout-methods/"+payoutMethodID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -70,13 +75,11 @@ func (s *PayoutMethodsService) Get(ctx context.Context, accountID string, payout
 func (s *PayoutMethodsService) List(
 	ctx context.Context,
 	accountID string,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params PayoutMethodListParams,
 ) (*PayoutMethodList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
+	query := buildListQuery(params.ListParams)
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "accounts/"+accountID+"/payout-methods", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "accounts/"+accountID+"/payout-methods", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -95,7 +98,7 @@ func (s *PayoutMethodsService) Update(
 	payoutMethodID string,
 	request UpdatePayoutMethodRequest,
 ) (*PayoutMethod, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "accounts/"+accountID+"/payout-methods/"+payoutMethodID, request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "accounts/"+accountID+"/payout-methods/"+payoutMethodID, request)
 	if err != nil {
 		return nil, err
 	}
@@ -109,7 +112,7 @@ func (s *PayoutMethodsService) Update(
 }
 
 func (s *PayoutMethodsService) Delete(ctx context.Context, accountID string, payoutMethodID string) (*DeletedResource, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "accounts/"+accountID+"/payout-methods/"+payoutMethodID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "accounts/"+accountID+"/payout-methods/"+payoutMethodID, nil)
 	if err != nil {
 		return nil, err
 	}

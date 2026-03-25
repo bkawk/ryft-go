@@ -2,6 +2,7 @@ package ryft
 
 import (
 	"context"
+	"net/http"
 )
 
 type PersonsService struct {
@@ -50,8 +51,12 @@ type UpdatePersonRequest struct {
 	Metadata       map[string]string `json:"metadata,omitempty"`
 }
 
+type PersonListParams struct {
+	ListParams
+}
+
 func (s *PersonsService) Create(ctx context.Context, accountID string, request CreatePersonRequest) (*Person, error) {
-	req, err := s.client.newRequest(ctx, "POST", "accounts/"+accountID+"/persons", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "accounts/"+accountID+"/persons", request)
 	if err != nil {
 		return nil, err
 	}
@@ -65,7 +70,7 @@ func (s *PersonsService) Create(ctx context.Context, accountID string, request C
 }
 
 func (s *PersonsService) Get(ctx context.Context, accountID string, personID string) (*Person, error) {
-	req, err := s.client.newRequest(ctx, "GET", "accounts/"+accountID+"/persons/"+personID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "accounts/"+accountID+"/persons/"+personID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -81,13 +86,11 @@ func (s *PersonsService) Get(ctx context.Context, accountID string, personID str
 func (s *PersonsService) List(
 	ctx context.Context,
 	accountID string,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params PersonListParams,
 ) (*PersonList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
+	query := buildListQuery(params.ListParams)
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "accounts/"+accountID+"/persons", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "accounts/"+accountID+"/persons", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -101,7 +104,7 @@ func (s *PersonsService) List(
 }
 
 func (s *PersonsService) Update(ctx context.Context, accountID string, personID string, request UpdatePersonRequest) (*Person, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "accounts/"+accountID+"/persons/"+personID, request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "accounts/"+accountID+"/persons/"+personID, request)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +118,7 @@ func (s *PersonsService) Update(ctx context.Context, accountID string, personID 
 }
 
 func (s *PersonsService) Delete(ctx context.Context, accountID string, personID string) (*DeletedResource, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "accounts/"+accountID+"/persons/"+personID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "accounts/"+accountID+"/persons/"+personID, nil)
 	if err != nil {
 		return nil, err
 	}

@@ -2,7 +2,10 @@ package ryft
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
+	"strconv"
 )
 
 type InPersonProductsService struct {
@@ -59,14 +62,14 @@ type InPersonOrderList struct {
 }
 
 type InPersonOrder struct {
-	ID       string           `json:"id,omitempty"`
-	Status   string           `json:"status,omitempty"`
-	Amount   int              `json:"amount,omitempty"`
-	Currency string           `json:"currency,omitempty"`
-	Items    []map[string]any `json:"items,omitempty"`
-	Customer map[string]any   `json:"customer,omitempty"`
-	Shipping map[string]any   `json:"shipping,omitempty"`
-	Tracking map[string]any   `json:"tracking,omitempty"`
+	ID       string            `json:"id,omitempty"`
+	Status   string            `json:"status,omitempty"`
+	Amount   int               `json:"amount,omitempty"`
+	Currency string            `json:"currency,omitempty"`
+	Items    []json.RawMessage `json:"items,omitempty"`
+	Customer json.RawMessage   `json:"customer,omitempty"`
+	Shipping json.RawMessage   `json:"shipping,omitempty"`
+	Tracking json.RawMessage   `json:"tracking,omitempty"`
 }
 
 type InPersonLocationList struct {
@@ -172,14 +175,31 @@ type TerminalConfirmReceiptRequest struct {
 	MerchantCopy *ReceiptCopyStatus `json:"merchantCopy,omitempty"`
 }
 
-func (s *InPersonProductsService) List(
-	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
-) (*InPersonProductList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "in-person/products", query, nil)
+type InPersonProductListParams struct {
+	ListParams
+}
+
+type InPersonSkuListParams struct {
+	ListParams
+	Country   string
+	ProductID string
+}
+
+type InPersonOrderListParams struct {
+	ListParams
+}
+
+type InPersonLocationListParams struct {
+	ListParams
+}
+
+type TerminalListParams struct {
+	ListParams
+}
+
+func (s *InPersonProductsService) List(ctx context.Context, params InPersonProductListParams) (*InPersonProductList, error) {
+	query := buildListQuery(params.ListParams)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "in-person/products", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -193,7 +213,7 @@ func (s *InPersonProductsService) List(
 }
 
 func (s *InPersonProductsService) Get(ctx context.Context, productID string) (*InPersonProduct, error) {
-	req, err := s.client.newRequest(ctx, "GET", "in-person/products/"+productID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "in-person/products/"+productID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -206,26 +226,22 @@ func (s *InPersonProductsService) Get(ctx context.Context, productID string) (*I
 	return &product, nil
 }
 
-func (s *InPersonSkusService) List(
-	ctx context.Context,
-	country string,
-	limit int,
-	startsAfter string,
-	productID string,
-) (*InPersonSkuList, error) {
+func (s *InPersonSkusService) List(ctx context.Context, params InPersonSkuListParams) (*InPersonSkuList, error) {
 	query := url.Values{}
-	query.Set("country", country)
-	if limit > 0 {
-		query.Set("limit", itoa(limit))
+	if params.Country != "" {
+		query.Set("country", params.Country)
 	}
-	if startsAfter != "" {
-		query.Set("startsAfter", startsAfter)
+	if params.Limit > 0 {
+		query.Set("limit", strconv.Itoa(params.Limit))
 	}
-	if productID != "" {
-		query.Set("productId", productID)
+	if params.StartsAfter != "" {
+		query.Set("startsAfter", params.StartsAfter)
+	}
+	if params.ProductID != "" {
+		query.Set("productId", params.ProductID)
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "in-person/skus", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "in-person/skus", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -239,7 +255,7 @@ func (s *InPersonSkusService) List(
 }
 
 func (s *InPersonSkusService) Get(ctx context.Context, skuID string) (*InPersonSku, error) {
-	req, err := s.client.newRequest(ctx, "GET", "in-person/skus/"+skuID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "in-person/skus/"+skuID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -254,28 +270,15 @@ func (s *InPersonSkusService) Get(ctx context.Context, skuID string) (*InPersonS
 
 func (s *InPersonOrdersService) List(
 	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params InPersonOrderListParams,
+	opts ...RequestOption,
 ) (*InPersonOrderList, error) {
-	return s.ListForAccount(ctx, ascending, limit, startsAfter, "")
-}
-
-func (s *InPersonOrdersService) ListForAccount(
-	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
-	accountID string,
-) (*InPersonOrderList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "in-person/orders", query, nil)
+	query := buildListQuery(params.ListParams)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "in-person/orders", query, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var orders InPersonOrderList
 	if err := s.client.doJSON(req, &orders); err != nil {
@@ -285,22 +288,16 @@ func (s *InPersonOrdersService) ListForAccount(
 	return &orders, nil
 }
 
-func (s *InPersonOrdersService) Get(ctx context.Context, orderID string) (*InPersonOrder, error) {
-	return s.GetForAccount(ctx, orderID, "")
-}
-
-func (s *InPersonOrdersService) GetForAccount(
+func (s *InPersonOrdersService) Get(
 	ctx context.Context,
 	orderID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*InPersonOrder, error) {
-	req, err := s.client.newRequest(ctx, "GET", "in-person/orders/"+orderID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "in-person/orders/"+orderID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var order InPersonOrder
 	if err := s.client.doJSON(req, &order); err != nil {
@@ -313,22 +310,13 @@ func (s *InPersonOrdersService) GetForAccount(
 func (s *InPersonLocationsService) Create(
 	ctx context.Context,
 	request CreateInPersonLocationRequest,
+	opts ...RequestOption,
 ) (*InPersonLocation, error) {
-	return s.CreateForAccount(ctx, request, "")
-}
-
-func (s *InPersonLocationsService) CreateForAccount(
-	ctx context.Context,
-	request CreateInPersonLocationRequest,
-	accountID string,
-) (*InPersonLocation, error) {
-	req, err := s.client.newRequest(ctx, "POST", "in-person/locations", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "in-person/locations", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var location InPersonLocation
 	if err := s.client.doJSON(req, &location); err != nil {
@@ -340,28 +328,15 @@ func (s *InPersonLocationsService) CreateForAccount(
 
 func (s *InPersonLocationsService) List(
 	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params InPersonLocationListParams,
+	opts ...RequestOption,
 ) (*InPersonLocationList, error) {
-	return s.ListForAccount(ctx, ascending, limit, startsAfter, "")
-}
-
-func (s *InPersonLocationsService) ListForAccount(
-	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
-	accountID string,
-) (*InPersonLocationList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "in-person/locations", query, nil)
+	query := buildListQuery(params.ListParams)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "in-person/locations", query, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var locations InPersonLocationList
 	if err := s.client.doJSON(req, &locations); err != nil {
@@ -371,22 +346,16 @@ func (s *InPersonLocationsService) ListForAccount(
 	return &locations, nil
 }
 
-func (s *InPersonLocationsService) Get(ctx context.Context, locationID string) (*InPersonLocation, error) {
-	return s.GetForAccount(ctx, locationID, "")
-}
-
-func (s *InPersonLocationsService) GetForAccount(
+func (s *InPersonLocationsService) Get(
 	ctx context.Context,
 	locationID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*InPersonLocation, error) {
-	req, err := s.client.newRequest(ctx, "GET", "in-person/locations/"+locationID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "in-person/locations/"+locationID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var location InPersonLocation
 	if err := s.client.doJSON(req, &location); err != nil {
@@ -400,23 +369,13 @@ func (s *InPersonLocationsService) Update(
 	ctx context.Context,
 	locationID string,
 	request UpdateInPersonLocationRequest,
+	opts ...RequestOption,
 ) (*InPersonLocation, error) {
-	return s.UpdateForAccount(ctx, locationID, request, "")
-}
-
-func (s *InPersonLocationsService) UpdateForAccount(
-	ctx context.Context,
-	locationID string,
-	request UpdateInPersonLocationRequest,
-	accountID string,
-) (*InPersonLocation, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "in-person/locations/"+locationID, request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "in-person/locations/"+locationID, request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var location InPersonLocation
 	if err := s.client.doJSON(req, &location); err != nil {
@@ -426,22 +385,16 @@ func (s *InPersonLocationsService) UpdateForAccount(
 	return &location, nil
 }
 
-func (s *InPersonLocationsService) Delete(ctx context.Context, locationID string) (*DeletedResource, error) {
-	return s.DeleteForAccount(ctx, locationID, "")
-}
-
-func (s *InPersonLocationsService) DeleteForAccount(
+func (s *InPersonLocationsService) Delete(
 	ctx context.Context,
 	locationID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*DeletedResource, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "in-person/locations/"+locationID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "in-person/locations/"+locationID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var deleted DeletedResource
 	if err := s.client.doJSON(req, &deleted); err != nil {
@@ -454,22 +407,13 @@ func (s *InPersonLocationsService) DeleteForAccount(
 func (s *InPersonTerminalsService) Create(
 	ctx context.Context,
 	request CreateTerminalRequest,
+	opts ...RequestOption,
 ) (*Terminal, error) {
-	return s.CreateForAccount(ctx, request, "")
-}
-
-func (s *InPersonTerminalsService) CreateForAccount(
-	ctx context.Context,
-	request CreateTerminalRequest,
-	accountID string,
-) (*Terminal, error) {
-	req, err := s.client.newRequest(ctx, "POST", "in-person/terminals", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "in-person/terminals", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminal Terminal
 	if err := s.client.doJSON(req, &terminal); err != nil {
@@ -481,28 +425,15 @@ func (s *InPersonTerminalsService) CreateForAccount(
 
 func (s *InPersonTerminalsService) List(
 	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params TerminalListParams,
+	opts ...RequestOption,
 ) (*TerminalList, error) {
-	return s.ListForAccount(ctx, ascending, limit, startsAfter, "")
-}
-
-func (s *InPersonTerminalsService) ListForAccount(
-	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
-	accountID string,
-) (*TerminalList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "in-person/terminals", query, nil)
+	query := buildListQuery(params.ListParams)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "in-person/terminals", query, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminals TerminalList
 	if err := s.client.doJSON(req, &terminals); err != nil {
@@ -512,22 +443,16 @@ func (s *InPersonTerminalsService) ListForAccount(
 	return &terminals, nil
 }
 
-func (s *InPersonTerminalsService) Get(ctx context.Context, terminalID string) (*Terminal, error) {
-	return s.GetForAccount(ctx, terminalID, "")
-}
-
-func (s *InPersonTerminalsService) GetForAccount(
+func (s *InPersonTerminalsService) Get(
 	ctx context.Context,
 	terminalID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*Terminal, error) {
-	req, err := s.client.newRequest(ctx, "GET", "in-person/terminals/"+terminalID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "in-person/terminals/"+terminalID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminal Terminal
 	if err := s.client.doJSON(req, &terminal); err != nil {
@@ -541,23 +466,13 @@ func (s *InPersonTerminalsService) Update(
 	ctx context.Context,
 	terminalID string,
 	request UpdateTerminalRequest,
+	opts ...RequestOption,
 ) (*Terminal, error) {
-	return s.UpdateForAccount(ctx, terminalID, request, "")
-}
-
-func (s *InPersonTerminalsService) UpdateForAccount(
-	ctx context.Context,
-	terminalID string,
-	request UpdateTerminalRequest,
-	accountID string,
-) (*Terminal, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "in-person/terminals/"+terminalID, request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "in-person/terminals/"+terminalID, request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminal Terminal
 	if err := s.client.doJSON(req, &terminal); err != nil {
@@ -567,22 +482,16 @@ func (s *InPersonTerminalsService) UpdateForAccount(
 	return &terminal, nil
 }
 
-func (s *InPersonTerminalsService) Delete(ctx context.Context, terminalID string) (*DeletedResource, error) {
-	return s.DeleteForAccount(ctx, terminalID, "")
-}
-
-func (s *InPersonTerminalsService) DeleteForAccount(
+func (s *InPersonTerminalsService) Delete(
 	ctx context.Context,
 	terminalID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*DeletedResource, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "in-person/terminals/"+terminalID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "in-person/terminals/"+terminalID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var deleted DeletedResource
 	if err := s.client.doJSON(req, &deleted); err != nil {
@@ -596,23 +505,13 @@ func (s *InPersonTerminalsService) InitiatePayment(
 	ctx context.Context,
 	terminalID string,
 	request TerminalPaymentRequest,
+	opts ...RequestOption,
 ) (*Terminal, error) {
-	return s.InitiatePaymentForAccount(ctx, terminalID, request, "")
-}
-
-func (s *InPersonTerminalsService) InitiatePaymentForAccount(
-	ctx context.Context,
-	terminalID string,
-	request TerminalPaymentRequest,
-	accountID string,
-) (*Terminal, error) {
-	req, err := s.client.newRequest(ctx, "POST", "in-person/terminals/"+terminalID+"/payment", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "in-person/terminals/"+terminalID+"/payment", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminal Terminal
 	if err := s.client.doJSON(req, &terminal); err != nil {
@@ -626,23 +525,13 @@ func (s *InPersonTerminalsService) InitiateRefund(
 	ctx context.Context,
 	terminalID string,
 	request TerminalRefundRequest,
+	opts ...RequestOption,
 ) (*Terminal, error) {
-	return s.InitiateRefundForAccount(ctx, terminalID, request, "")
-}
-
-func (s *InPersonTerminalsService) InitiateRefundForAccount(
-	ctx context.Context,
-	terminalID string,
-	request TerminalRefundRequest,
-	accountID string,
-) (*Terminal, error) {
-	req, err := s.client.newRequest(ctx, "POST", "in-person/terminals/"+terminalID+"/refund", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "in-person/terminals/"+terminalID+"/refund", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminal Terminal
 	if err := s.client.doJSON(req, &terminal); err != nil {
@@ -652,22 +541,16 @@ func (s *InPersonTerminalsService) InitiateRefundForAccount(
 	return &terminal, nil
 }
 
-func (s *InPersonTerminalsService) CancelAction(ctx context.Context, terminalID string) (*Terminal, error) {
-	return s.CancelActionForAccount(ctx, terminalID, "")
-}
-
-func (s *InPersonTerminalsService) CancelActionForAccount(
+func (s *InPersonTerminalsService) CancelAction(
 	ctx context.Context,
 	terminalID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*Terminal, error) {
-	req, err := s.client.newRequest(ctx, "POST", "in-person/terminals/"+terminalID+"/cancel-action", nil)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "in-person/terminals/"+terminalID+"/cancel-action", nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminal Terminal
 	if err := s.client.doJSON(req, &terminal); err != nil {
@@ -681,23 +564,13 @@ func (s *InPersonTerminalsService) ConfirmReceipt(
 	ctx context.Context,
 	terminalID string,
 	request TerminalConfirmReceiptRequest,
+	opts ...RequestOption,
 ) (*Terminal, error) {
-	return s.ConfirmReceiptForAccount(ctx, terminalID, request, "")
-}
-
-func (s *InPersonTerminalsService) ConfirmReceiptForAccount(
-	ctx context.Context,
-	terminalID string,
-	request TerminalConfirmReceiptRequest,
-	accountID string,
-) (*Terminal, error) {
-	req, err := s.client.newRequest(ctx, "POST", "in-person/terminals/"+terminalID+"/confirm-receipt", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "in-person/terminals/"+terminalID+"/confirm-receipt", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var terminal Terminal
 	if err := s.client.doJSON(req, &terminal); err != nil {

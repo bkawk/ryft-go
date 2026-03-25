@@ -2,7 +2,9 @@ package ryft
 
 import (
 	"context"
-	"net/url"
+	"encoding/json"
+	"net/http"
+	"strconv"
 )
 
 type PaymentSessionsService struct {
@@ -39,6 +41,12 @@ type PaymentSessionTransactionList struct {
 	Items []PaymentSessionTransaction `json:"items"`
 }
 
+type PaymentSessionTransactionListParams struct {
+	ListParams
+	StartTimestamp int
+	EndTimestamp   int
+}
+
 type CreatePaymentSessionRequest struct {
 	Amount          int                        `json:"amount"`
 	Currency        string                     `json:"currency"`
@@ -53,7 +61,7 @@ type CreatePaymentSessionRequest struct {
 	PreviousPayment *PaymentSessionReference   `json:"previousPayment,omitempty"`
 	RebillingDetail *RebillingDetail           `json:"rebillingDetail,omitempty"`
 	Splits          *CreateSplitPaymentRequest `json:"splits,omitempty"`
-	AttemptPayment  map[string]any             `json:"attemptPayment,omitempty"`
+	AttemptPayment  json.RawMessage            `json:"attemptPayment,omitempty"`
 }
 
 type PaymentSessionCustomer struct {
@@ -104,22 +112,16 @@ type RefundPaymentSessionRequest struct {
 	RefundPlatformFee bool   `json:"refundPlatformFee,omitempty"`
 }
 
-func (s *PaymentSessionsService) Create(ctx context.Context, request CreatePaymentSessionRequest) (*PaymentSession, error) {
-	return s.CreateForAccount(ctx, request, "")
-}
-
-func (s *PaymentSessionsService) CreateForAccount(
+func (s *PaymentSessionsService) Create(
 	ctx context.Context,
 	request CreatePaymentSessionRequest,
-	accountID string,
+	opts ...RequestOption,
 ) (*PaymentSession, error) {
-	req, err := s.client.newRequest(ctx, "POST", "payment-sessions", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "payment-sessions", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var paymentSession PaymentSession
 	if err := s.client.doJSON(req, &paymentSession); err != nil {
@@ -129,22 +131,16 @@ func (s *PaymentSessionsService) CreateForAccount(
 	return &paymentSession, nil
 }
 
-func (s *PaymentSessionsService) Get(ctx context.Context, paymentSessionID string) (*PaymentSession, error) {
-	return s.GetForAccount(ctx, paymentSessionID, "")
-}
-
-func (s *PaymentSessionsService) GetForAccount(
+func (s *PaymentSessionsService) Get(
 	ctx context.Context,
 	paymentSessionID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*PaymentSession, error) {
-	req, err := s.client.newRequest(ctx, "GET", "payment-sessions/"+paymentSessionID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "payment-sessions/"+paymentSessionID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var paymentSession PaymentSession
 	if err := s.client.doJSON(req, &paymentSession); err != nil {
@@ -154,23 +150,26 @@ func (s *PaymentSessionsService) GetForAccount(
 	return &paymentSession, nil
 }
 
-func (s *PaymentSessionsService) Update(ctx context.Context, paymentSessionID string, request UpdatePaymentSessionRequest) (*PaymentSession, error) {
-	return s.UpdateForAccount(ctx, paymentSessionID, request, "")
-}
-
-func (s *PaymentSessionsService) UpdateForAccount(
+func (s *PaymentSessionsService) Update(
 	ctx context.Context,
 	paymentSessionID string,
 	request UpdatePaymentSessionRequest,
-	accountID string,
+	opts ...RequestOption,
 ) (*PaymentSession, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "payment-sessions/"+paymentSessionID, request)
+	return s.UpdateWithOptions(ctx, paymentSessionID, request, opts...)
+}
+
+func (s *PaymentSessionsService) UpdateWithOptions(
+	ctx context.Context,
+	paymentSessionID string,
+	request UpdatePaymentSessionRequest,
+	opts ...RequestOption,
+) (*PaymentSession, error) {
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "payment-sessions/"+paymentSessionID, request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var paymentSession PaymentSession
 	if err := s.client.doJSON(req, &paymentSession); err != nil {
@@ -184,23 +183,22 @@ func (s *PaymentSessionsService) Refund(
 	ctx context.Context,
 	paymentSessionID string,
 	request RefundPaymentSessionRequest,
+	opts ...RequestOption,
 ) (*PaymentSessionTransaction, error) {
-	return s.RefundForAccount(ctx, paymentSessionID, request, "")
+	return s.RefundWithOptions(ctx, paymentSessionID, request, opts...)
 }
 
-func (s *PaymentSessionsService) RefundForAccount(
+func (s *PaymentSessionsService) RefundWithOptions(
 	ctx context.Context,
 	paymentSessionID string,
 	request RefundPaymentSessionRequest,
-	accountID string,
+	opts ...RequestOption,
 ) (*PaymentSessionTransaction, error) {
-	req, err := s.client.newRequest(ctx, "POST", "payment-sessions/"+paymentSessionID+"/refunds", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "payment-sessions/"+paymentSessionID+"/refunds", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var transaction PaymentSessionTransaction
 	if err := s.client.doJSON(req, &transaction); err != nil {
@@ -213,42 +211,22 @@ func (s *PaymentSessionsService) RefundForAccount(
 func (s *PaymentSessionsService) ListTransactions(
 	ctx context.Context,
 	paymentSessionID string,
-	startTimestamp int,
-	endTimestamp int,
-	ascending bool,
-	limit int,
+	params PaymentSessionTransactionListParams,
+	opts ...RequestOption,
 ) (*PaymentSessionTransactionList, error) {
-	return s.ListTransactionsForAccount(ctx, paymentSessionID, startTimestamp, endTimestamp, ascending, limit, "")
-}
-
-func (s *PaymentSessionsService) ListTransactionsForAccount(
-	ctx context.Context,
-	paymentSessionID string,
-	startTimestamp int,
-	endTimestamp int,
-	ascending bool,
-	limit int,
-	accountID string,
-) (*PaymentSessionTransactionList, error) {
-	query := url.Values{}
-	if startTimestamp > 0 {
-		query.Set("startTimestamp", itoa(startTimestamp))
+	query := buildListQuery(params.ListParams)
+	if params.StartTimestamp > 0 {
+		query.Set("startTimestamp", strconv.Itoa(params.StartTimestamp))
 	}
-	if endTimestamp > 0 {
-		query.Set("endTimestamp", itoa(endTimestamp))
-	}
-	query.Set("ascending", boolString(ascending))
-	if limit > 0 {
-		query.Set("limit", itoa(limit))
+	if params.EndTimestamp > 0 {
+		query.Set("endTimestamp", strconv.Itoa(params.EndTimestamp))
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "payment-sessions/"+paymentSessionID+"/transactions", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "payment-sessions/"+paymentSessionID+"/transactions", query, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var transactions PaymentSessionTransactionList
 	if err := s.client.doJSON(req, &transactions); err != nil {
@@ -262,23 +240,13 @@ func (s *PaymentSessionsService) GetTransaction(
 	ctx context.Context,
 	paymentSessionID string,
 	transactionID string,
+	opts ...RequestOption,
 ) (*PaymentSessionTransaction, error) {
-	return s.GetTransactionForAccount(ctx, paymentSessionID, transactionID, "")
-}
-
-func (s *PaymentSessionsService) GetTransactionForAccount(
-	ctx context.Context,
-	paymentSessionID string,
-	transactionID string,
-	accountID string,
-) (*PaymentSessionTransaction, error) {
-	req, err := s.client.newRequest(ctx, "GET", "payment-sessions/"+paymentSessionID+"/transactions/"+transactionID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "payment-sessions/"+paymentSessionID+"/transactions/"+transactionID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var transaction PaymentSessionTransaction
 	if err := s.client.doJSON(req, &transaction); err != nil {

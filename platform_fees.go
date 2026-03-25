@@ -2,7 +2,7 @@ package ryft
 
 import (
 	"context"
-	"net/url"
+	"net/http"
 )
 
 type PlatformFeesService struct {
@@ -33,14 +33,14 @@ type PlatformFeeRefundList struct {
 	Items []PlatformFeeRefund `json:"items"`
 }
 
-func (s *PlatformFeesService) List(ctx context.Context, ascending bool, limit int) (*PlatformFeeList, error) {
-	query := url.Values{}
-	query.Set("ascending", boolString(ascending))
-	if limit > 0 {
-		query.Set("limit", itoa(limit))
-	}
+type PlatformFeeListParams struct {
+	ListParams
+}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "platform-fees", query, nil)
+func (s *PlatformFeesService) List(ctx context.Context, params PlatformFeeListParams) (*PlatformFeeList, error) {
+	query := buildListQuery(params.ListParams)
+
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "platform-fees", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (s *PlatformFeesService) List(ctx context.Context, ascending bool, limit in
 }
 
 func (s *PlatformFeesService) Get(ctx context.Context, feeID string) (*PlatformFee, error) {
-	req, err := s.client.newRequest(ctx, "GET", "platform-fees/"+feeID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "platform-fees/"+feeID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -66,7 +66,7 @@ func (s *PlatformFeesService) Get(ctx context.Context, feeID string) (*PlatformF
 }
 
 func (s *PlatformFeesService) GetRefunds(ctx context.Context, feeID string) (*PlatformFeeRefundList, error) {
-	req, err := s.client.newRequest(ctx, "GET", "platform-fees/"+feeID+"/refunds", nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "platform-fees/"+feeID+"/refunds", nil)
 	if err != nil {
 		return nil, err
 	}

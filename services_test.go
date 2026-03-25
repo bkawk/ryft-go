@@ -57,14 +57,14 @@ func assertQueryValues(t *testing.T, got url.Values, want map[string]string) {
 func TestBuildListQuery(t *testing.T) {
 	t.Parallel()
 
-	query := buildListQuery(true, 25, "cus_123")
+	query := buildListQuery(ListParams{Ascending: true, Limit: 25, StartsAfter: "cus_123"})
 	assertQueryValues(t, query, map[string]string{
 		"ascending":   "true",
 		"limit":       "25",
 		"startsAfter": "cus_123",
 	})
 
-	empty := buildListQuery(false, 0, "")
+	empty := buildListQuery(ListParams{Ascending: false})
 	assertQueryValues(t, empty, map[string]string{
 		"ascending": "false",
 	})
@@ -123,7 +123,7 @@ func TestCustomersServiceMethods(t *testing.T) {
 		t.Fatalf("customer.ID = %q, want %q", customer.ID, "cus_123")
 	}
 
-	customers, err := client.Customers.List(ctx, "jane@example.com", 100, 200, true, 5, "cus_001")
+	customers, err := client.Customers.List(ctx, CustomerListParams{ListParams: ListParams{Ascending: true, Limit: 5, StartsAfter: "cus_001"}, Email: "jane@example.com", StartTimestamp: 100, EndTimestamp: 200})
 	if err != nil {
 		t.Fatalf("List returned error: %v", err)
 	}
@@ -197,7 +197,7 @@ func TestAccountsAndAccountLinksMethods(t *testing.T) {
 		case r.Method == http.MethodPost && r.URL.Path == "/account-links":
 			payload := decodeJSONBody(t, r)
 			if payload["accountId"] != "ac_123" {
-				t.Fatalf("accountId = %v, want %q", payload["accountId"], "ac_123")
+				t.Fatalf("accountId = %v, want %q", payload["accountId"], WithAccount("ac_123"))
 			}
 			_, _ = io.WriteString(w, `{"url":"https://connect.example.com/link","createdTimestamp":1,"expiresTimestamp":2}`)
 		default:
@@ -321,9 +321,9 @@ func TestApplePayMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	domain, err := client.ApplePay.RegisterDomainForAccount(ctx, RegisterApplePayWebDomainRequest{
+	domain, err := client.ApplePay.RegisterDomain(ctx, RegisterApplePayWebDomainRequest{
 		DomainName: "checkout.example.com",
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("RegisterDomainForAccount returned error: %v", err)
 	}
@@ -331,7 +331,7 @@ func TestApplePayMethods(t *testing.T) {
 		t.Fatalf("domain.ID = %q, want %q", domain.ID, "apwd_123")
 	}
 
-	domains, err := client.ApplePay.ListDomainsForAccount(ctx, true, 10, "apwd_prev", "ac_123")
+	domains, err := client.ApplePay.ListDomains(ctx, ApplePayWebDomainListParams{ListParams: ListParams{Ascending: true, Limit: 10, StartsAfter: "apwd_prev"}}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("ListDomainsForAccount returned error: %v", err)
 	}
@@ -339,7 +339,7 @@ func TestApplePayMethods(t *testing.T) {
 		t.Fatalf("len(domains.Items) = %d, want 1", len(domains.Items))
 	}
 
-	gotDomain, err := client.ApplePay.GetDomainForAccount(ctx, "apwd_123", "ac_123")
+	gotDomain, err := client.ApplePay.GetDomain(ctx, "apwd_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("GetDomainForAccount returned error: %v", err)
 	}
@@ -347,7 +347,7 @@ func TestApplePayMethods(t *testing.T) {
 		t.Fatalf("gotDomain.DomainName = %q, want %q", gotDomain.DomainName, "checkout.example.com")
 	}
 
-	deleted, err := client.ApplePay.DeleteDomainForAccount(ctx, "apwd_123", "ac_123")
+	deleted, err := client.ApplePay.DeleteDomain(ctx, "apwd_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("DeleteDomainForAccount returned error: %v", err)
 	}
@@ -355,10 +355,10 @@ func TestApplePayMethods(t *testing.T) {
 		t.Fatalf("deleted.ID = %q, want %q", deleted.ID, "apwd_123")
 	}
 
-	session, err := client.ApplePay.CreateSessionForAccount(ctx, CreateApplePayWebSessionRequest{
+	session, err := client.ApplePay.CreateSession(ctx, CreateApplePayWebSessionRequest{
 		DisplayName: "Ryft Demo",
 		DomainName:  "checkout.example.com",
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("CreateSessionForAccount returned error: %v", err)
 	}
@@ -525,7 +525,7 @@ func TestInPersonMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	products, err := client.InPersonProducts.List(ctx, true, 5, "ippd_prev")
+	products, err := client.InPersonProducts.List(ctx, InPersonProductListParams{ListParams: ListParams{Ascending: true, Limit: 5, StartsAfter: "ippd_prev"}})
 	if err != nil {
 		t.Fatalf("InPersonProducts.List returned error: %v", err)
 	}
@@ -541,7 +541,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("product.ID = %q, want %q", product.ID, "ippd_123")
 	}
 
-	skus, err := client.InPersonSkus.List(ctx, "GB", 5, "", "ippd_123")
+	skus, err := client.InPersonSkus.List(ctx, InPersonSkuListParams{ListParams: ListParams{Limit: 5}, Country: "GB", ProductID: "ippd_123"})
 	if err != nil {
 		t.Fatalf("InPersonSkus.List returned error: %v", err)
 	}
@@ -557,7 +557,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("sku.ID = %q, want %q", sku.ID, "ipsku_123")
 	}
 
-	orders, err := client.InPersonOrders.ListForAccount(ctx, true, 5, "ipord_prev", "ac_123")
+	orders, err := client.InPersonOrders.List(ctx, InPersonOrderListParams{ListParams: ListParams{Ascending: true, Limit: 5, StartsAfter: "ipord_prev"}}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonOrders.ListForAccount returned error: %v", err)
 	}
@@ -565,7 +565,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("len(orders.Items) = %d, want 1", len(orders.Items))
 	}
 
-	order, err := client.InPersonOrders.GetForAccount(ctx, "ipord_123", "ac_123")
+	order, err := client.InPersonOrders.Get(ctx, "ipord_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonOrders.GetForAccount returned error: %v", err)
 	}
@@ -573,7 +573,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("order.ID = %q, want %q", order.ID, "ipord_123")
 	}
 
-	location, err := client.InPersonLocations.CreateForAccount(ctx, CreateInPersonLocationRequest{
+	location, err := client.InPersonLocations.Create(ctx, CreateInPersonLocationRequest{
 		Name: "Store 1",
 		Address: InPersonLocationAddress{
 			FirstLine:  "1 Main St",
@@ -581,7 +581,7 @@ func TestInPersonMethods(t *testing.T) {
 			PostalCode: "SW1A 1AA",
 			Country:    "GB",
 		},
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonLocations.CreateForAccount returned error: %v", err)
 	}
@@ -589,7 +589,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("location.ID = %q, want %q", location.ID, "iploc_123")
 	}
 
-	locations, err := client.InPersonLocations.ListForAccount(ctx, true, 5, "iploc_prev", "ac_123")
+	locations, err := client.InPersonLocations.List(ctx, InPersonLocationListParams{ListParams: ListParams{Ascending: true, Limit: 5, StartsAfter: "iploc_prev"}}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonLocations.ListForAccount returned error: %v", err)
 	}
@@ -597,7 +597,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("len(locations.Items) = %d, want 1", len(locations.Items))
 	}
 
-	gotLocation, err := client.InPersonLocations.GetForAccount(ctx, "iploc_123", "ac_123")
+	gotLocation, err := client.InPersonLocations.Get(ctx, "iploc_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonLocations.GetForAccount returned error: %v", err)
 	}
@@ -605,9 +605,9 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("gotLocation.ID = %q, want %q", gotLocation.ID, "iploc_123")
 	}
 
-	updatedLocation, err := client.InPersonLocations.UpdateForAccount(ctx, "iploc_123", UpdateInPersonLocationRequest{
+	updatedLocation, err := client.InPersonLocations.Update(ctx, "iploc_123", UpdateInPersonLocationRequest{
 		Name: "Store 1A",
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonLocations.UpdateForAccount returned error: %v", err)
 	}
@@ -615,7 +615,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("updatedLocation.Name = %q, want %q", updatedLocation.Name, "Store 1A")
 	}
 
-	deletedLocation, err := client.InPersonLocations.DeleteForAccount(ctx, "iploc_123", "ac_123")
+	deletedLocation, err := client.InPersonLocations.Delete(ctx, "iploc_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonLocations.DeleteForAccount returned error: %v", err)
 	}
@@ -623,10 +623,10 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("deletedLocation.ID = %q, want %q", deletedLocation.ID, "iploc_123")
 	}
 
-	terminal, err := client.InPersonTerminals.CreateForAccount(ctx, CreateTerminalRequest{
+	terminal, err := client.InPersonTerminals.Create(ctx, CreateTerminalRequest{
 		SerialNumber: "SN-001",
 		LocationID:   "iploc_123",
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.CreateForAccount returned error: %v", err)
 	}
@@ -634,7 +634,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("terminal.ID = %q, want %q", terminal.ID, "tml_123")
 	}
 
-	terminals, err := client.InPersonTerminals.ListForAccount(ctx, true, 5, "tml_prev", "ac_123")
+	terminals, err := client.InPersonTerminals.List(ctx, TerminalListParams{ListParams: ListParams{Ascending: true, Limit: 5, StartsAfter: "tml_prev"}}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.ListForAccount returned error: %v", err)
 	}
@@ -642,7 +642,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("len(terminals.Items) = %d, want 1", len(terminals.Items))
 	}
 
-	gotTerminal, err := client.InPersonTerminals.GetForAccount(ctx, "tml_123", "ac_123")
+	gotTerminal, err := client.InPersonTerminals.Get(ctx, "tml_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.GetForAccount returned error: %v", err)
 	}
@@ -650,9 +650,9 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("gotTerminal.ID = %q, want %q", gotTerminal.ID, "tml_123")
 	}
 
-	updatedTerminal, err := client.InPersonTerminals.UpdateForAccount(ctx, "tml_123", UpdateTerminalRequest{
+	updatedTerminal, err := client.InPersonTerminals.Update(ctx, "tml_123", UpdateTerminalRequest{
 		Name: "Front Desk",
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.UpdateForAccount returned error: %v", err)
 	}
@@ -660,10 +660,10 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("updatedTerminal.Name = %q, want %q", updatedTerminal.Name, "Front Desk")
 	}
 
-	paymentTerminal, err := client.InPersonTerminals.InitiatePaymentForAccount(ctx, "tml_123", TerminalPaymentRequest{
+	paymentTerminal, err := client.InPersonTerminals.InitiatePayment(ctx, "tml_123", TerminalPaymentRequest{
 		Amounts:  RequestedAmounts{Requested: 1200},
 		Currency: "GBP",
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.InitiatePaymentForAccount returned error: %v", err)
 	}
@@ -671,9 +671,9 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("paymentTerminal.Status = %q, want %q", paymentTerminal.Status, "AwaitingCard")
 	}
 
-	refundTerminal, err := client.InPersonTerminals.InitiateRefundForAccount(ctx, "tml_123", TerminalRefundRequest{
+	refundTerminal, err := client.InPersonTerminals.InitiateRefund(ctx, "tml_123", TerminalRefundRequest{
 		PaymentSession: TerminalRefundPaymentSessionReference{ID: "ps_123"},
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.InitiateRefundForAccount returned error: %v", err)
 	}
@@ -681,7 +681,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("refundTerminal.Status = %q, want %q", refundTerminal.Status, "AwaitingCard")
 	}
 
-	cancelledTerminal, err := client.InPersonTerminals.CancelActionForAccount(ctx, "tml_123", "ac_123")
+	cancelledTerminal, err := client.InPersonTerminals.CancelAction(ctx, "tml_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.CancelActionForAccount returned error: %v", err)
 	}
@@ -689,9 +689,9 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("cancelledTerminal.Status = %q, want %q", cancelledTerminal.Status, "Ready")
 	}
 
-	confirmedTerminal, err := client.InPersonTerminals.ConfirmReceiptForAccount(ctx, "tml_123", TerminalConfirmReceiptRequest{
+	confirmedTerminal, err := client.InPersonTerminals.ConfirmReceipt(ctx, "tml_123", TerminalConfirmReceiptRequest{
 		CustomerCopy: &ReceiptCopyStatus{Status: "Succeeded"},
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.ConfirmReceiptForAccount returned error: %v", err)
 	}
@@ -699,7 +699,7 @@ func TestInPersonMethods(t *testing.T) {
 		t.Fatalf("confirmedTerminal.Status = %q, want %q", confirmedTerminal.Status, "ReceiptConfirmed")
 	}
 
-	deletedTerminal, err := client.InPersonTerminals.DeleteForAccount(ctx, "tml_123", "ac_123")
+	deletedTerminal, err := client.InPersonTerminals.Delete(ctx, "tml_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("InPersonTerminals.DeleteForAccount returned error: %v", err)
 	}
@@ -799,7 +799,7 @@ func TestPersonsAndPayoutMethodsMethods(t *testing.T) {
 		t.Fatalf("gotPerson.Email = %q, want %q", gotPerson.Email, "jane@example.com")
 	}
 
-	persons, err := client.Persons.List(ctx, "ac_123", false, 10, "per_001")
+	persons, err := client.Persons.List(ctx, "ac_123", PersonListParams{ListParams: ListParams{Ascending: false, Limit: 10, StartsAfter: "per_001"}})
 	if err != nil {
 		t.Fatalf("Persons.List returned error: %v", err)
 	}
@@ -852,7 +852,7 @@ func TestPersonsAndPayoutMethodsMethods(t *testing.T) {
 		t.Fatalf("gotPayoutMethod.Currency = %q, want %q", gotPayoutMethod.Currency, "GBP")
 	}
 
-	payoutMethods, err := client.PayoutMethods.List(ctx, "ac_123", true, 20, "pmo_001")
+	payoutMethods, err := client.PayoutMethods.List(ctx, "ac_123", PayoutMethodListParams{ListParams: ListParams{Ascending: true, Limit: 20, StartsAfter: "pmo_001"}})
 	if err != nil {
 		t.Fatalf("PayoutMethods.List returned error: %v", err)
 	}
@@ -977,7 +977,7 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	paymentSession, err := client.PaymentSessions.CreateForAccount(ctx, CreatePaymentSessionRequest{
+	paymentSession, err := client.PaymentSessions.Create(ctx, CreatePaymentSessionRequest{
 		Amount:          2000,
 		Currency:        "GBP",
 		PlatformFee:     50,
@@ -1000,7 +1000,7 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 				},
 			},
 		},
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("PaymentSessions.CreateForAccount returned error: %v", err)
 	}
@@ -1008,7 +1008,7 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 		t.Fatalf("paymentSession.ID = %q, want %q", paymentSession.ID, "ps_123")
 	}
 
-	gotPaymentSession, err := client.PaymentSessions.GetForAccount(ctx, "ps_123", "ac_123")
+	gotPaymentSession, err := client.PaymentSessions.Get(ctx, "ps_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("PaymentSessions.GetForAccount returned error: %v", err)
 	}
@@ -1016,9 +1016,9 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 		t.Fatalf("gotPaymentSession.Currency = %q, want %q", gotPaymentSession.Currency, "GBP")
 	}
 
-	updatedPaymentSession, err := client.PaymentSessions.UpdateForAccount(ctx, "ps_123", UpdatePaymentSessionRequest{
+	updatedPaymentSession, err := client.PaymentSessions.Update(ctx, "ps_123", UpdatePaymentSessionRequest{
 		CustomerEmail: "buyer@example.com",
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("PaymentSessions.UpdateForAccount returned error: %v", err)
 	}
@@ -1026,11 +1026,11 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 		t.Fatalf("updatedPaymentSession.CustomerEmail = %q, want %q", updatedPaymentSession.CustomerEmail, "buyer@example.com")
 	}
 
-	refund, err := client.PaymentSessions.RefundForAccount(ctx, "ps_123", RefundPaymentSessionRequest{
+	refund, err := client.PaymentSessions.Refund(ctx, "ps_123", RefundPaymentSessionRequest{
 		Amount:            2000,
 		Reason:            "requested_by_customer",
 		RefundPlatformFee: true,
-	}, "ac_123")
+	}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("PaymentSessions.RefundForAccount returned error: %v", err)
 	}
@@ -1038,7 +1038,7 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 		t.Fatalf("refund.ID = %q, want %q", refund.ID, "txn_123")
 	}
 
-	transactions, err := client.PaymentSessions.ListTransactionsForAccount(ctx, "ps_123", 100, 200, false, 3, "ac_123")
+	transactions, err := client.PaymentSessions.ListTransactions(ctx, "ps_123", PaymentSessionTransactionListParams{ListParams: ListParams{Ascending: false, Limit: 3}, StartTimestamp: 100, EndTimestamp: 200}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("PaymentSessions.ListTransactionsForAccount returned error: %v", err)
 	}
@@ -1046,7 +1046,7 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 		t.Fatalf("len(transactions.Items) = %d, want 1", len(transactions.Items))
 	}
 
-	transaction, err := client.PaymentSessions.GetTransactionForAccount(ctx, "ps_123", "txn_123", "ac_123")
+	transaction, err := client.PaymentSessions.GetTransaction(ctx, "ps_123", "txn_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("PaymentSessions.GetTransactionForAccount returned error: %v", err)
 	}
@@ -1189,7 +1189,7 @@ func TestSubscriptionsAndWebhooksMethods(t *testing.T) {
 		t.Fatalf("updatedSubscription.Description = %q, want %q", updatedSubscription.Description, "Updated plan")
 	}
 
-	subscriptions, err := client.Subscriptions.List(ctx, 100, 200, true, 10, "sub_001")
+	subscriptions, err := client.Subscriptions.List(ctx, SubscriptionListParams{ListParams: ListParams{Ascending: true, Limit: 10, StartsAfter: "sub_001"}, StartTimestamp: 100, EndTimestamp: 200})
 	if err != nil {
 		t.Fatalf("Subscriptions.List returned error: %v", err)
 	}
@@ -1197,7 +1197,11 @@ func TestSubscriptionsAndWebhooksMethods(t *testing.T) {
 		t.Fatalf("len(subscriptions.Items) = %d, want 1", len(subscriptions.Items))
 	}
 
-	paymentSessions, err := client.Subscriptions.GetPaymentSessions(ctx, "sub_123", 100, 200, false, 4, "ps_001")
+	paymentSessions, err := client.Subscriptions.GetPaymentSessions(ctx, "sub_123", SubscriptionListParams{
+		ListParams:     ListParams{Ascending: false, Limit: 4, StartsAfter: "ps_001"},
+		StartTimestamp: 100,
+		EndTimestamp:   200,
+	})
 	if err != nil {
 		t.Fatalf("Subscriptions.GetPaymentSessions returned error: %v", err)
 	}
@@ -1371,7 +1375,7 @@ func TestFinancialResourcesMethods(t *testing.T) {
 		t.Fatalf("gotPayout.Status = %q, want %q", gotPayout.Status, "Pending")
 	}
 
-	payouts, err := client.Payouts.List(ctx, "ac_123", 100, 200, false, 8, "po_001")
+	payouts, err := client.Payouts.List(ctx, "ac_123", PayoutListParams{ListParams: ListParams{Ascending: false, Limit: 8, StartsAfter: "po_001"}, StartTimestamp: 100, EndTimestamp: 200})
 	if err != nil {
 		t.Fatalf("Payouts.List returned error: %v", err)
 	}
@@ -1402,7 +1406,7 @@ func TestFinancialResourcesMethods(t *testing.T) {
 		t.Fatalf("gotTransfer.Currency = %q, want %q", gotTransfer.Currency, "GBP")
 	}
 
-	transfers, err := client.Transfers.List(ctx, 6)
+	transfers, err := client.Transfers.List(ctx, TransferListParams{ListParams: ListParams{Limit: 6}})
 	if err != nil {
 		t.Fatalf("Transfers.List returned error: %v", err)
 	}
@@ -1410,7 +1414,7 @@ func TestFinancialResourcesMethods(t *testing.T) {
 		t.Fatalf("len(transfers.Items) = %d, want 1", len(transfers.Items))
 	}
 
-	balances, err := client.Balances.List(ctx, "GBP", "ac_123")
+	balances, err := client.Balances.List(ctx, BalanceListParams{Currency: "GBP"}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("Balances.List returned error: %v", err)
 	}
@@ -1418,7 +1422,7 @@ func TestFinancialResourcesMethods(t *testing.T) {
 		t.Fatalf("len(balances.Items) = %d, want 1", len(balances.Items))
 	}
 
-	balanceTransactions, err := client.BalanceTransactions.List(ctx, 7, "bt_001", "po_123", "ac_123")
+	balanceTransactions, err := client.BalanceTransactions.List(ctx, BalanceTransactionListParams{ListParams: ListParams{Limit: 7, StartsAfter: "bt_001"}, PayoutID: "po_123"}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("BalanceTransactions.List returned error: %v", err)
 	}
@@ -1426,7 +1430,7 @@ func TestFinancialResourcesMethods(t *testing.T) {
 		t.Fatalf("len(balanceTransactions.Items) = %d, want 1", len(balanceTransactions.Items))
 	}
 
-	platformFees, err := client.PlatformFees.List(ctx, true, 9)
+	platformFees, err := client.PlatformFees.List(ctx, PlatformFeeListParams{ListParams: ListParams{Ascending: true, Limit: 9}})
 	if err != nil {
 		t.Fatalf("PlatformFees.List returned error: %v", err)
 	}
@@ -1518,7 +1522,7 @@ func TestEventsDisputesAndFilesMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	events, err := client.Events.List(ctx, true, 11, "ac_123")
+	events, err := client.Events.List(ctx, EventListParams{ListParams: ListParams{Ascending: true, Limit: 11}}, WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("Events.List returned error: %v", err)
 	}
@@ -1526,15 +1530,15 @@ func TestEventsDisputesAndFilesMethods(t *testing.T) {
 		t.Fatalf("len(events.Items) = %d, want 1", len(events.Items))
 	}
 
-	event, err := client.Events.Get(ctx, "evt_123", "ac_123")
+	event, err := client.Events.Get(ctx, "evt_123", WithAccount("ac_123"))
 	if err != nil {
 		t.Fatalf("Events.Get returned error: %v", err)
 	}
 	if event.AccountID != "ac_123" {
-		t.Fatalf("event.AccountID = %q, want %q", event.AccountID, "ac_123")
+		t.Fatalf("event.AccountID = %q, want %q", event.AccountID, WithAccount("ac_123"))
 	}
 
-	files, err := client.Files.List(ctx, "Evidence", false, 4, "file_001")
+	files, err := client.Files.List(ctx, FileListParams{ListParams: ListParams{Ascending: false, Limit: 4, StartsAfter: "file_001"}, Category: "Evidence"})
 	if err != nil {
 		t.Fatalf("Files.List returned error: %v", err)
 	}
@@ -1550,7 +1554,7 @@ func TestEventsDisputesAndFilesMethods(t *testing.T) {
 		t.Fatalf("file.Category = %q, want %q", file.Category, "Evidence")
 	}
 
-	disputes, err := client.Disputes.List(ctx, 100, 200, false, 12, "dp_001")
+	disputes, err := client.Disputes.List(ctx, DisputeListParams{ListParams: ListParams{Ascending: false, Limit: 12, StartsAfter: "dp_001"}, StartTimestamp: 100, EndTimestamp: 200})
 	if err != nil {
 		t.Fatalf("Disputes.List returned error: %v", err)
 	}

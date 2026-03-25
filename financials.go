@@ -2,6 +2,8 @@ package ryft
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
 )
 
@@ -18,8 +20,8 @@ type BalanceList struct {
 }
 
 type Balance struct {
-	Currency  string         `json:"currency,omitempty"`
-	Available map[string]any `json:"available,omitempty"`
+	Currency  string          `json:"currency,omitempty"`
+	Available json.RawMessage `json:"available,omitempty"`
 }
 
 type BalanceTransactionList struct {
@@ -27,25 +29,34 @@ type BalanceTransactionList struct {
 }
 
 type BalanceTransaction struct {
-	ID       string         `json:"id,omitempty"`
-	Amount   int            `json:"amount,omitempty"`
-	Currency string         `json:"currency,omitempty"`
-	Type     string         `json:"type,omitempty"`
-	Status   string         `json:"status,omitempty"`
-	Origin   map[string]any `json:"origin,omitempty"`
+	ID       string          `json:"id,omitempty"`
+	Amount   int             `json:"amount,omitempty"`
+	Currency string          `json:"currency,omitempty"`
+	Type     string          `json:"type,omitempty"`
+	Status   string          `json:"status,omitempty"`
+	Origin   json.RawMessage `json:"origin,omitempty"`
 }
 
-func (s *BalancesService) List(ctx context.Context, currency string, accountID string) (*BalanceList, error) {
-	query := url.Values{}
-	query.Set("currency", currency)
+type BalanceListParams struct {
+	Currency string
+}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "balances", query, nil)
+type BalanceTransactionListParams struct {
+	ListParams
+	PayoutID string
+}
+
+func (s *BalancesService) List(ctx context.Context, params BalanceListParams, opts ...RequestOption) (*BalanceList, error) {
+	query := url.Values{}
+	if params.Currency != "" {
+		query.Set("currency", params.Currency)
+	}
+
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "balances", query, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var balances BalanceList
 	if err := s.client.doJSON(req, &balances); err != nil {
@@ -57,29 +68,19 @@ func (s *BalancesService) List(ctx context.Context, currency string, accountID s
 
 func (s *BalanceTransactionsService) List(
 	ctx context.Context,
-	limit int,
-	startsAfter string,
-	payoutID string,
-	accountID string,
+	params BalanceTransactionListParams,
+	opts ...RequestOption,
 ) (*BalanceTransactionList, error) {
-	query := url.Values{}
-	if limit > 0 {
-		query.Set("limit", itoa(limit))
-	}
-	if startsAfter != "" {
-		query.Set("startsAfter", startsAfter)
-	}
-	if payoutID != "" {
-		query.Set("payoutId", payoutID)
+	query := buildListQuery(params.ListParams)
+	if params.PayoutID != "" {
+		query.Set("payoutId", params.PayoutID)
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "balance-transactions", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "balance-transactions", query, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var balanceTransactions BalanceTransactionList
 	if err := s.client.doJSON(req, &balanceTransactions); err != nil {

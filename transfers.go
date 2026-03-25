@@ -2,6 +2,8 @@ package ryft
 
 import (
 	"context"
+	"encoding/json"
+	"net/http"
 )
 
 type TransfersService struct {
@@ -9,16 +11,20 @@ type TransfersService struct {
 }
 
 type Transfer struct {
-	ID          string         `json:"id"`
-	Amount      int            `json:"amount,omitempty"`
-	Currency    string         `json:"currency,omitempty"`
-	Status      string         `json:"status,omitempty"`
-	Destination map[string]any `json:"destination,omitempty"`
-	Metadata    map[string]any `json:"metadata,omitempty"`
+	ID          string          `json:"id"`
+	Amount      int             `json:"amount,omitempty"`
+	Currency    string          `json:"currency,omitempty"`
+	Status      string          `json:"status,omitempty"`
+	Destination json.RawMessage `json:"destination,omitempty"`
+	Metadata    json.RawMessage `json:"metadata,omitempty"`
 }
 
 type TransferList struct {
 	Items []Transfer `json:"items"`
+}
+
+type TransferListParams struct {
+	ListParams
 }
 
 type TransferDestination struct {
@@ -34,7 +40,7 @@ type CreateTransferRequest struct {
 }
 
 func (s *TransfersService) Create(ctx context.Context, request CreateTransferRequest) (*Transfer, error) {
-	req, err := s.client.newRequest(ctx, "POST", "transfers", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "transfers", request)
 	if err != nil {
 		return nil, err
 	}
@@ -48,7 +54,7 @@ func (s *TransfersService) Create(ctx context.Context, request CreateTransferReq
 }
 
 func (s *TransfersService) Get(ctx context.Context, transferID string) (*Transfer, error) {
-	req, err := s.client.newRequest(ctx, "GET", "transfers/"+transferID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "transfers/"+transferID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -61,10 +67,10 @@ func (s *TransfersService) Get(ctx context.Context, transferID string) (*Transfe
 	return &transfer, nil
 }
 
-func (s *TransfersService) List(ctx context.Context, limit int) (*TransferList, error) {
-	query := buildListQuery(false, limit, "")
+func (s *TransfersService) List(ctx context.Context, params TransferListParams) (*TransferList, error) {
+	query := buildListQuery(params.ListParams)
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "transfers", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "transfers", query, nil)
 	if err != nil {
 		return nil, err
 	}

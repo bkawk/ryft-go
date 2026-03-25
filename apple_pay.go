@@ -1,6 +1,9 @@
 package ryft
 
-import "context"
+import (
+	"context"
+	"net/http"
+)
 
 type ApplePayService struct {
 	client *Client
@@ -15,6 +18,10 @@ type ApplePayWebDomain struct {
 type ApplePayWebDomainList struct {
 	Items           []ApplePayWebDomain `json:"items"`
 	PaginationToken string              `json:"paginationToken,omitempty"`
+}
+
+type ApplePayWebDomainListParams struct {
+	ListParams
 }
 
 type RegisterApplePayWebDomainRequest struct {
@@ -33,22 +40,13 @@ type ApplePayWebSession struct {
 func (s *ApplePayService) RegisterDomain(
 	ctx context.Context,
 	request RegisterApplePayWebDomainRequest,
+	opts ...RequestOption,
 ) (*ApplePayWebDomain, error) {
-	return s.RegisterDomainForAccount(ctx, request, "")
-}
-
-func (s *ApplePayService) RegisterDomainForAccount(
-	ctx context.Context,
-	request RegisterApplePayWebDomainRequest,
-	accountID string,
-) (*ApplePayWebDomain, error) {
-	req, err := s.client.newRequest(ctx, "POST", "apple-pay/web-domains", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "apple-pay/web-domains", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var domain ApplePayWebDomain
 	if err := s.client.doJSON(req, &domain); err != nil {
@@ -60,28 +58,15 @@ func (s *ApplePayService) RegisterDomainForAccount(
 
 func (s *ApplePayService) ListDomains(
 	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params ApplePayWebDomainListParams,
+	opts ...RequestOption,
 ) (*ApplePayWebDomainList, error) {
-	return s.ListDomainsForAccount(ctx, ascending, limit, startsAfter, "")
-}
-
-func (s *ApplePayService) ListDomainsForAccount(
-	ctx context.Context,
-	ascending bool,
-	limit int,
-	startsAfter string,
-	accountID string,
-) (*ApplePayWebDomainList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "apple-pay/web-domains", query, nil)
+	query := buildListQuery(params.ListParams)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "apple-pay/web-domains", query, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var domains ApplePayWebDomainList
 	if err := s.client.doJSON(req, &domains); err != nil {
@@ -91,22 +76,16 @@ func (s *ApplePayService) ListDomainsForAccount(
 	return &domains, nil
 }
 
-func (s *ApplePayService) GetDomain(ctx context.Context, domainID string) (*ApplePayWebDomain, error) {
-	return s.GetDomainForAccount(ctx, domainID, "")
-}
-
-func (s *ApplePayService) GetDomainForAccount(
+func (s *ApplePayService) GetDomain(
 	ctx context.Context,
 	domainID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*ApplePayWebDomain, error) {
-	req, err := s.client.newRequest(ctx, "GET", "apple-pay/web-domains/"+domainID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "apple-pay/web-domains/"+domainID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var domain ApplePayWebDomain
 	if err := s.client.doJSON(req, &domain); err != nil {
@@ -116,22 +95,16 @@ func (s *ApplePayService) GetDomainForAccount(
 	return &domain, nil
 }
 
-func (s *ApplePayService) DeleteDomain(ctx context.Context, domainID string) (*DeletedResource, error) {
-	return s.DeleteDomainForAccount(ctx, domainID, "")
-}
-
-func (s *ApplePayService) DeleteDomainForAccount(
+func (s *ApplePayService) DeleteDomain(
 	ctx context.Context,
 	domainID string,
-	accountID string,
+	opts ...RequestOption,
 ) (*DeletedResource, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "apple-pay/web-domains/"+domainID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "apple-pay/web-domains/"+domainID, nil)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var deleted DeletedResource
 	if err := s.client.doJSON(req, &deleted); err != nil {
@@ -144,22 +117,13 @@ func (s *ApplePayService) DeleteDomainForAccount(
 func (s *ApplePayService) CreateSession(
 	ctx context.Context,
 	request CreateApplePayWebSessionRequest,
+	opts ...RequestOption,
 ) (*ApplePayWebSession, error) {
-	return s.CreateSessionForAccount(ctx, request, "")
-}
-
-func (s *ApplePayService) CreateSessionForAccount(
-	ctx context.Context,
-	request CreateApplePayWebSessionRequest,
-	accountID string,
-) (*ApplePayWebSession, error) {
-	req, err := s.client.newRequest(ctx, "POST", "apple-pay/sessions", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "apple-pay/sessions", request)
 	if err != nil {
 		return nil, err
 	}
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	s.client.applyRequestOptions(req, opts...)
 
 	var session ApplePayWebSession
 	if err := s.client.doJSON(req, &session); err != nil {

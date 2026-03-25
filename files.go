@@ -2,7 +2,7 @@ package ryft
 
 import (
 	"context"
-	"net/url"
+	"net/http"
 )
 
 type FilesService struct {
@@ -25,26 +25,18 @@ type CreateFileRequest struct {
 	Account  string
 }
 
-func (s *FilesService) List(
-	ctx context.Context,
-	category string,
-	ascending bool,
-	limit int,
-	startsAfter string,
-) (*FileList, error) {
-	query := url.Values{}
-	if category != "" {
-		query.Set("category", category)
-	}
-	query.Set("ascending", boolString(ascending))
-	if limit > 0 {
-		query.Set("limit", itoa(limit))
-	}
-	if startsAfter != "" {
-		query.Set("startsAfter", startsAfter)
+type FileListParams struct {
+	ListParams
+	Category string
+}
+
+func (s *FilesService) List(ctx context.Context, params FileListParams) (*FileList, error) {
+	query := buildListQuery(params.ListParams)
+	if params.Category != "" {
+		query.Set("category", params.Category)
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "files", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "files", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -57,7 +49,7 @@ func (s *FilesService) List(
 }
 
 func (s *FilesService) Get(ctx context.Context, fileID string) (*File, error) {
-	req, err := s.client.newRequest(ctx, "GET", "files/"+fileID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "files/"+fileID, nil)
 	if err != nil {
 		return nil, err
 	}

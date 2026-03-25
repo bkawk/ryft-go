@@ -14,6 +14,7 @@ import (
 	"net/url"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -27,6 +28,32 @@ type Config struct {
 	SecretKey  string
 	BaseURL    string
 	HTTPClient *http.Client
+}
+
+type ListParams struct {
+	Ascending   bool
+	Limit       int
+	StartsAfter string
+}
+
+type requestOptions struct {
+	accountID string
+}
+
+type RequestOption interface {
+	apply(*requestOptions)
+}
+
+type requestOptionFunc func(*requestOptions)
+
+func (f requestOptionFunc) apply(opts *requestOptions) {
+	f(opts)
+}
+
+func WithAccount(accountID string) RequestOption {
+	return requestOptionFunc(func(opts *requestOptions) {
+		opts.accountID = accountID
+	})
 }
 
 type Client struct {
@@ -164,6 +191,18 @@ func (c *Client) newRequestWithQuery(
 	return req, nil
 }
 
+func (c *Client) applyRequestOptions(req *http.Request, opts ...RequestOption) {
+	var resolved requestOptions
+	for _, opt := range opts {
+		if opt != nil {
+			opt.apply(&resolved)
+		}
+	}
+	if resolved.accountID != "" {
+		req.Header.Set("Account", resolved.accountID)
+	}
+}
+
 func (c *Client) doJSON(req *http.Request, out any) error {
 	resp, err := c.httpClient.Do(req)
 	if err != nil {
@@ -243,21 +282,19 @@ func (c *Client) doMultipartFile(
 	req.Header.Set("Authorization", c.secretKey)
 	req.Header.Set("Accept", "application/json")
 	req.Header.Set("Content-Type", writer.FormDataContentType())
-	if accountID != "" {
-		req.Header.Set("Account", accountID)
-	}
+	c.applyRequestOptions(req, WithAccount(accountID))
 
 	return c.doJSON(req, out)
 }
 
-func buildListQuery(ascending bool, limit int, startsAfter string) url.Values {
+func buildListQuery(params ListParams) url.Values {
 	query := url.Values{}
-	query.Set("ascending", boolString(ascending))
-	if limit > 0 {
-		query.Set("limit", itoa(limit))
+	query.Set("ascending", strconv.FormatBool(params.Ascending))
+	if params.Limit > 0 {
+		query.Set("limit", strconv.Itoa(params.Limit))
 	}
-	if startsAfter != "" {
-		query.Set("startsAfter", startsAfter)
+	if params.StartsAfter != "" {
+		query.Set("startsAfter", params.StartsAfter)
 	}
 	return query
 }

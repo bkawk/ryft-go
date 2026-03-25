@@ -2,6 +2,8 @@ package ryft
 
 import (
 	"context"
+	"net/http"
+	"strconv"
 )
 
 type PayoutsService struct {
@@ -26,8 +28,14 @@ type PayoutList struct {
 	Items []Payout `json:"items"`
 }
 
+type PayoutListParams struct {
+	ListParams
+	StartTimestamp int
+	EndTimestamp   int
+}
+
 func (s *PayoutsService) Create(ctx context.Context, accountID string, request CreatePayoutRequest) (*Payout, error) {
-	req, err := s.client.newRequest(ctx, "POST", "accounts/"+accountID+"/payouts", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "accounts/"+accountID+"/payouts", request)
 	if err != nil {
 		return nil, err
 	}
@@ -41,7 +49,7 @@ func (s *PayoutsService) Create(ctx context.Context, accountID string, request C
 }
 
 func (s *PayoutsService) Get(ctx context.Context, accountID string, payoutID string) (*Payout, error) {
-	req, err := s.client.newRequest(ctx, "GET", "accounts/"+accountID+"/payouts/"+payoutID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "accounts/"+accountID+"/payouts/"+payoutID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -57,21 +65,17 @@ func (s *PayoutsService) Get(ctx context.Context, accountID string, payoutID str
 func (s *PayoutsService) List(
 	ctx context.Context,
 	accountID string,
-	startTimestamp int,
-	endTimestamp int,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params PayoutListParams,
 ) (*PayoutList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	if startTimestamp > 0 {
-		query.Set("startTimestamp", itoa(startTimestamp))
+	query := buildListQuery(params.ListParams)
+	if params.StartTimestamp > 0 {
+		query.Set("startTimestamp", strconv.Itoa(params.StartTimestamp))
 	}
-	if endTimestamp > 0 {
-		query.Set("endTimestamp", itoa(endTimestamp))
+	if params.EndTimestamp > 0 {
+		query.Set("endTimestamp", strconv.Itoa(params.EndTimestamp))
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "accounts/"+accountID+"/payouts", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "accounts/"+accountID+"/payouts", query, nil)
 	if err != nil {
 		return nil, err
 	}

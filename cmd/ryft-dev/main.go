@@ -95,7 +95,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 
-		paymentSession, err := client.PaymentSessions.CreateForAccount(ctx, request, accountID)
+		paymentSession, err := client.PaymentSessions.Create(ctx, request, ryft.WithAccount(accountID))
 		if err != nil {
 			return err
 		}
@@ -113,7 +113,7 @@ func run(ctx context.Context, args []string) error {
 			return err
 		}
 
-		paymentSession, err := client.PaymentSessions.UpdateForAccount(ctx, paymentSessionID, request, accountID)
+		paymentSession, err := client.PaymentSessions.Update(ctx, paymentSessionID, request, ryft.WithAccount(accountID))
 		if err != nil {
 			return err
 		}
@@ -187,7 +187,7 @@ func run(ctx context.Context, args []string) error {
 		if len(args) > 2 {
 			accountID = args[2]
 		}
-		locations, err := client.InPersonLocations.ListForAccount(ctx, false, limit, "", accountID)
+		locations, err := client.InPersonLocations.List(ctx, ryft.InPersonLocationListParams{ListParams: ryft.ListParams{Ascending: false, Limit: limit}}, ryft.WithAccount(accountID))
 		if err != nil {
 			return err
 		}
@@ -253,7 +253,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		people, err := client.Persons.List(ctx, args[2], true, limit, "")
+		people, err := client.Persons.List(ctx, args[2], ryft.PersonListParams{ListParams: ryft.ListParams{Ascending: true, Limit: limit}})
 		if err != nil {
 			return err
 		}
@@ -279,7 +279,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		payoutMethods, err := client.PayoutMethods.List(ctx, args[2], true, limit, "")
+		payoutMethods, err := client.PayoutMethods.List(ctx, args[2], ryft.PayoutMethodListParams{ListParams: ryft.ListParams{Ascending: true, Limit: limit}})
 		if err != nil {
 			return err
 		}
@@ -322,7 +322,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		transfers, err := client.Transfers.List(ctx, limit)
+		transfers, err := client.Transfers.List(ctx, ryft.TransferListParams{ListParams: ryft.ListParams{Limit: limit}})
 		if err != nil {
 			return err
 		}
@@ -332,7 +332,7 @@ func run(ctx context.Context, args []string) error {
 		if len(args) < 3 {
 			return errors.New("usage: ryft-dev balance-list <currency> <account-id>")
 		}
-		balances, err := client.Balances.List(ctx, args[1], args[2])
+		balances, err := client.Balances.List(ctx, ryft.BalanceListParams{Currency: args[1]}, ryft.WithAccount(args[2]))
 		if err != nil {
 			return err
 		}
@@ -346,7 +346,7 @@ func run(ctx context.Context, args []string) error {
 		if err != nil {
 			return err
 		}
-		balanceTransactions, err := client.BalanceTransactions.List(ctx, limit, "", "", args[2])
+		balanceTransactions, err := client.BalanceTransactions.List(ctx, ryft.BalanceTransactionListParams{ListParams: ryft.ListParams{Limit: limit}}, ryft.WithAccount(args[2]))
 		if err != nil {
 			return err
 		}
@@ -357,14 +357,14 @@ func run(ctx context.Context, args []string) error {
 		if len(args) > 1 {
 			accountID = args[1]
 		}
-		events, err := client.Events.List(ctx, false, 50, accountID)
+		events, err := client.Events.List(ctx, ryft.EventListParams{ListParams: ryft.ListParams{Ascending: false, Limit: 50}}, ryft.WithAccount(accountID))
 		if err != nil {
 			return err
 		}
 		printJSON(os.Stdout, events)
 		return nil
 	case "platform-fee-list":
-		fees, err := client.PlatformFees.List(ctx, false, 50)
+		fees, err := client.PlatformFees.List(ctx, ryft.PlatformFeeListParams{ListParams: ryft.ListParams{Ascending: false, Limit: 50}})
 		if err != nil {
 			return err
 		}
@@ -385,7 +385,7 @@ func run(ctx context.Context, args []string) error {
 		if len(args) > 1 {
 			category = args[1]
 		}
-		files, err := client.Files.List(ctx, category, false, 50, "")
+		files, err := client.Files.List(ctx, ryft.FileListParams{ListParams: ryft.ListParams{Ascending: false, Limit: 50}, Category: category})
 		if err != nil {
 			return err
 		}
@@ -409,7 +409,7 @@ func run(ctx context.Context, args []string) error {
 		printJSON(os.Stdout, file)
 		return nil
 	case "dispute-list":
-		disputes, err := client.Disputes.List(ctx, 0, 0, false, 50, "")
+		disputes, err := client.Disputes.List(ctx, ryft.DisputeListParams{ListParams: ryft.ListParams{Ascending: false, Limit: 50}})
 		if err != nil {
 			return err
 		}
@@ -545,7 +545,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "subscription-list":
 		startTimestamp, endTimestamp := collectionWindowFromEnv()
-		subscriptions, err := client.Subscriptions.List(ctx, startTimestamp, endTimestamp, false, 10, "")
+		subscriptions, err := client.Subscriptions.List(ctx, ryft.SubscriptionListParams{ListParams: ryft.ListParams{Ascending: false, Limit: 10}, StartTimestamp: startTimestamp, EndTimestamp: endTimestamp})
 		if err != nil {
 			return err
 		}
@@ -559,11 +559,11 @@ func run(ctx context.Context, args []string) error {
 		paymentSessions, err := client.Subscriptions.GetPaymentSessions(
 			ctx,
 			args[1],
-			startTimestamp,
-			endTimestamp,
-			false,
-			10,
-			"",
+			ryft.SubscriptionListParams{
+				ListParams:     ryft.ListParams{Ascending: false, Limit: 10},
+				StartTimestamp: startTimestamp,
+				EndTimestamp:   endTimestamp,
+			},
 		)
 		if err != nil {
 			return err
@@ -633,7 +633,7 @@ func handleEntityGet(ctx context.Context, client *ryft.Client, entityType string
 		printJSON(os.Stdout, customer)
 		return nil
 	case "payment-session":
-		paymentSession, err := client.PaymentSessions.GetForAccount(ctx, entityID, parentID)
+		paymentSession, err := client.PaymentSessions.Get(ctx, entityID, ryft.WithAccount(parentID))
 		if err != nil {
 			return err
 		}
@@ -705,7 +705,7 @@ func handleEntityGet(ctx context.Context, client *ryft.Client, entityType string
 		printJSON(os.Stdout, subscription)
 		return nil
 	case "event":
-		event, err := client.Events.Get(ctx, entityID, parentID)
+		event, err := client.Events.Get(ctx, entityID, ryft.WithAccount(parentID))
 		if err != nil {
 			return err
 		}
@@ -743,7 +743,7 @@ func handleEntityGet(ctx context.Context, client *ryft.Client, entityType string
 		printJSON(os.Stdout, dispute)
 		return nil
 	case "in-person-location":
-		location, err := client.InPersonLocations.GetForAccount(ctx, entityID, parentID)
+		location, err := client.InPersonLocations.Get(ctx, entityID, ryft.WithAccount(parentID))
 		if err != nil {
 			return err
 		}
@@ -845,7 +845,11 @@ func paymentSessionCreateRequest(args []string) (ryft.CreatePaymentSessionReques
 	}
 
 	if rawAttemptPayment, ok := options["attemptPayment"].(map[string]any); ok {
-		request.AttemptPayment = rawAttemptPayment
+		payload, err := json.Marshal(rawAttemptPayment)
+		if err != nil {
+			return ryft.CreatePaymentSessionRequest{}, "", fmt.Errorf("marshal attemptPayment: %w", err)
+		}
+		request.AttemptPayment = payload
 	}
 
 	return request, stringFromAny(options["accountId"], ""), nil

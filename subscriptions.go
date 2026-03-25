@@ -2,6 +2,8 @@ package ryft
 
 import (
 	"context"
+	"net/http"
+	"strconv"
 )
 
 type SubscriptionsService struct {
@@ -26,6 +28,12 @@ type SubscriptionList struct {
 
 type SubscriptionPaymentSessionList struct {
 	Items []PaymentSession `json:"items"`
+}
+
+type SubscriptionListParams struct {
+	ListParams
+	StartTimestamp int
+	EndTimestamp   int
 }
 
 type SubscriptionCustomerReference struct {
@@ -76,7 +84,7 @@ type PauseSubscriptionRequest struct {
 }
 
 func (s *SubscriptionsService) Create(ctx context.Context, request CreateSubscriptionRequest) (*Subscription, error) {
-	req, err := s.client.newRequest(ctx, "POST", "subscriptions", request)
+	req, err := s.client.newRequest(ctx, http.MethodPost, "subscriptions", request)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +98,7 @@ func (s *SubscriptionsService) Create(ctx context.Context, request CreateSubscri
 }
 
 func (s *SubscriptionsService) Get(ctx context.Context, subscriptionID string) (*Subscription, error) {
-	req, err := s.client.newRequest(ctx, "GET", "subscriptions/"+subscriptionID, nil)
+	req, err := s.client.newRequest(ctx, http.MethodGet, "subscriptions/"+subscriptionID, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -108,7 +116,7 @@ func (s *SubscriptionsService) Update(
 	subscriptionID string,
 	request UpdateSubscriptionRequest,
 ) (*Subscription, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "subscriptions/"+subscriptionID, request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "subscriptions/"+subscriptionID, request)
 	if err != nil {
 		return nil, err
 	}
@@ -121,23 +129,16 @@ func (s *SubscriptionsService) Update(
 	return &subscription, nil
 }
 
-func (s *SubscriptionsService) List(
-	ctx context.Context,
-	startTimestamp int,
-	endTimestamp int,
-	ascending bool,
-	limit int,
-	startsAfter string,
-) (*SubscriptionList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	if startTimestamp > 0 {
-		query.Set("startTimestamp", itoa(startTimestamp))
+func (s *SubscriptionsService) List(ctx context.Context, params SubscriptionListParams) (*SubscriptionList, error) {
+	query := buildListQuery(params.ListParams)
+	if params.StartTimestamp > 0 {
+		query.Set("startTimestamp", strconv.Itoa(params.StartTimestamp))
 	}
-	if endTimestamp > 0 {
-		query.Set("endTimestamp", itoa(endTimestamp))
+	if params.EndTimestamp > 0 {
+		query.Set("endTimestamp", strconv.Itoa(params.EndTimestamp))
 	}
 
-	req, err := s.client.newRequestWithQuery(ctx, "GET", "subscriptions", query, nil)
+	req, err := s.client.newRequestWithQuery(ctx, http.MethodGet, "subscriptions", query, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -153,23 +154,19 @@ func (s *SubscriptionsService) List(
 func (s *SubscriptionsService) GetPaymentSessions(
 	ctx context.Context,
 	subscriptionID string,
-	startTimestamp int,
-	endTimestamp int,
-	ascending bool,
-	limit int,
-	startsAfter string,
+	params SubscriptionListParams,
 ) (*SubscriptionPaymentSessionList, error) {
-	query := buildListQuery(ascending, limit, startsAfter)
-	if startTimestamp > 0 {
-		query.Set("startTimestamp", itoa(startTimestamp))
+	query := buildListQuery(params.ListParams)
+	if params.StartTimestamp > 0 {
+		query.Set("startTimestamp", strconv.Itoa(params.StartTimestamp))
 	}
-	if endTimestamp > 0 {
-		query.Set("endTimestamp", itoa(endTimestamp))
+	if params.EndTimestamp > 0 {
+		query.Set("endTimestamp", strconv.Itoa(params.EndTimestamp))
 	}
 
 	req, err := s.client.newRequestWithQuery(
 		ctx,
-		"GET",
+		http.MethodGet,
 		"subscriptions/"+subscriptionID+"/payment-sessions",
 		query,
 		nil,
@@ -191,7 +188,7 @@ func (s *SubscriptionsService) Pause(
 	subscriptionID string,
 	request PauseSubscriptionRequest,
 ) (*Subscription, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "subscriptions/"+subscriptionID+"/pause", request)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "subscriptions/"+subscriptionID+"/pause", request)
 	if err != nil {
 		return nil, err
 	}
@@ -205,7 +202,7 @@ func (s *SubscriptionsService) Pause(
 }
 
 func (s *SubscriptionsService) Resume(ctx context.Context, subscriptionID string) (*Subscription, error) {
-	req, err := s.client.newRequest(ctx, "PATCH", "subscriptions/"+subscriptionID+"/resume", nil)
+	req, err := s.client.newRequest(ctx, http.MethodPatch, "subscriptions/"+subscriptionID+"/resume", nil)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +216,7 @@ func (s *SubscriptionsService) Resume(ctx context.Context, subscriptionID string
 }
 
 func (s *SubscriptionsService) Cancel(ctx context.Context, subscriptionID string) (*DeletedResource, error) {
-	req, err := s.client.newRequest(ctx, "DELETE", "subscriptions/"+subscriptionID+"/cancel", nil)
+	req, err := s.client.newRequest(ctx, http.MethodDelete, "subscriptions/"+subscriptionID+"/cancel", nil)
 	if err != nil {
 		return nil, err
 	}
