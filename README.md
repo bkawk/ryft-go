@@ -10,7 +10,7 @@ This repository currently focuses on a solid core API surface with live parity c
 go get github.com/bkawk/ryft-go
 ```
 
-## Quickstart
+## Quick Start
 
 ```go
 package main
@@ -32,7 +32,7 @@ func main() {
 	}
 
 	customer, err := client.Customers.Create(context.Background(), ryft.CreateCustomerRequest{
-		Email:     "sdk-example@ryftpay.test",
+		Email:     "sdk-example@example.test",
 		FirstName: "Go",
 		LastName:  "Example",
 		Metadata: map[string]string{
@@ -69,7 +69,7 @@ Then create a customer through the local server:
 curl -X POST http://localhost:8080/customers \
   -H "Content-Type: application/json" \
   -d '{
-    "email": "sdk-example@ryftpay.test",
+    "email": "sdk-example@example.test",
     "firstName": "Gin",
     "lastName": "Example",
     "metadata": {
@@ -88,7 +88,7 @@ curl -X POST http://localhost:8080/customers \
 
 If `BaseURL` is omitted, the SDK selects the Ryft sandbox or live API automatically from the secret key prefix.
 
-## Current API Surface
+## API Surface
 
 - customers: create, list, get, update, delete
 - payment sessions: create, get, update, refund
@@ -109,6 +109,16 @@ If `BaseURL` is omitted, the SDK selects the Ryft sandbox or live API automatica
 - platform fees: list, get, refunds list
 - files: create, list, get
 - disputes: list, get, accept, challenge, add evidence, delete evidence
+
+## Credentials
+
+The SDK requires a Ryft secret key.
+
+Typical local usage:
+
+```bash
+export RYFT_SECRET_KEY=sk_sandbox_your_secret_key
+```
 
 ## Error Handling
 
