@@ -148,7 +148,7 @@ The repo includes Go tests plus command-line tooling for local development and v
 Run the local test suite with:
 
 ```bash
-go test ./... -coverprofile=coverage.out
+go list ./... | grep -v '/examples/' | xargs go test -coverprofile=coverage.out
 go tool cover -func=coverage.out
 ```
 

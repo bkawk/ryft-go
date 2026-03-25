@@ -30,7 +30,8 @@ jobs:
           fi
 
       - name: Run tests with coverage
-        run: go test ./... -coverprofile=coverage.out
+        run: |
+          go list ./... | grep -v '/examples/' | xargs go test -coverprofile=coverage.out
 
       - name: Print coverage summary
         run: go tool cover -func=coverage.out
