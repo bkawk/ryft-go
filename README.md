@@ -47,6 +47,13 @@ func main() {
 }
 ```
 
+Or run the example directly:
+
+```bash
+export RYFT_SECRET_KEY=sk_sandbox_your_secret_key
+go run ./examples/basic
+```
+
 ## Configuration
 
 `ryft.NewClient` accepts:
@@ -113,3 +120,12 @@ if err != nil {
 ## Development
 
 The repo includes Go tests plus command-line tooling for local development and validation.
+
+Run the local test suite with:
+
+```bash
+go test ./... -coverprofile=coverage.out
+go tool cover -func=coverage.out
+```
+
+GitHub Actions runs formatting, tests, and coverage summary on pushes to `main` and on pull requests.
