@@ -1,0 +1,8 @@
+package ryft
+
+func boolString(value bool) string {
+	if value {
+		return "true"
+	}
+	return "false"
+}
