@@ -27,7 +27,7 @@ func main() {
 
 func run(ctx context.Context, args []string) error {
 	if len(args) == 0 {
-		return errors.New("usage: parity <customer-create|customer-update|entity-get> ...")
+		return errors.New("usage: ryft-dev <customer-create|customer-update|entity-get> ...")
 	}
 
 	client, err := ryft.NewClient(ryft.Config{
@@ -40,7 +40,7 @@ func run(ctx context.Context, args []string) error {
 	switch args[0] {
 	case "customer-create":
 		if len(args) < 2 {
-			return errors.New("usage: parity customer-create <email> [first-name] [last-name] [metadata-json]")
+			return errors.New("usage: ryft-dev customer-create <email> [first-name] [last-name] [metadata-json]")
 		}
 
 		request, err := customerCreateRequest(args[1:])
@@ -57,7 +57,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "customer-update":
 		if len(args) < 2 {
-			return errors.New("usage: parity customer-update <id> [first-name] [last-name] [metadata-json]")
+			return errors.New("usage: ryft-dev customer-update <id> [first-name] [last-name] [metadata-json]")
 		}
 
 		customerID := args[1]
@@ -75,7 +75,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "entity-get":
 		if len(args) < 3 {
-			return errors.New("usage: parity entity-get <entity-type> <id> [parent-id]")
+			return errors.New("usage: ryft-dev entity-get <entity-type> <id> [parent-id]")
 		}
 
 		entityType := args[1]
@@ -87,7 +87,7 @@ func run(ctx context.Context, args []string) error {
 		return handleEntityGet(ctx, client, entityType, entityID, parentID)
 	case "payment-session-create":
 		if len(args) < 7 {
-			return errors.New("usage: parity payment-session-create <amount> <currency> <customer-email> <payment-type> <entry-mode> <capture-flow> [metadata-json]")
+			return errors.New("usage: ryft-dev payment-session-create <amount> <currency> <customer-email> <payment-type> <entry-mode> <capture-flow> [metadata-json]")
 		}
 
 		request, err := paymentSessionCreateRequest(args[1:])
@@ -104,7 +104,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payment-session-update":
 		if len(args) < 2 {
-			return errors.New("usage: parity payment-session-update <id> [amount] [customer-email] [capture-flow] [metadata-json]")
+			return errors.New("usage: ryft-dev payment-session-update <id> [amount] [customer-email] [capture-flow] [metadata-json]")
 		}
 
 		paymentSessionID := args[1]
@@ -122,7 +122,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "webhook-create":
 		if len(args) < 4 {
-			return errors.New("usage: parity webhook-create <url> <active> <event-types-json>")
+			return errors.New("usage: ryft-dev webhook-create <url> <active> <event-types-json>")
 		}
 
 		request, err := webhookCreateRequest(args[1:])
@@ -139,7 +139,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "webhook-update":
 		if len(args) < 2 {
-			return errors.New("usage: parity webhook-update <id> [url] [active] [event-types-json]")
+			return errors.New("usage: ryft-dev webhook-update <id> [url] [active] [event-types-json]")
 		}
 
 		webhookID := args[1]
@@ -157,7 +157,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "webhook-delete":
 		if len(args) < 2 {
-			return errors.New("usage: parity webhook-delete <id>")
+			return errors.New("usage: ryft-dev webhook-delete <id>")
 		}
 
 		webhook, err := client.Webhooks.Delete(ctx, args[1])
@@ -177,7 +177,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "account-create":
 		if len(args) < 3 {
-			return errors.New("usage: parity account-create <entity-type> <email> [metadata-json] [mode] [onboarding-flow]")
+			return errors.New("usage: ryft-dev account-create <entity-type> <email> [metadata-json] [mode] [onboarding-flow]")
 		}
 		request, err := accountCreateRequest(args[1:])
 		if err != nil {
@@ -191,7 +191,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "account-verify":
 		if len(args) < 2 {
-			return errors.New("usage: parity account-verify <account-id>")
+			return errors.New("usage: ryft-dev account-verify <account-id>")
 		}
 		account, err := client.Accounts.Verify(ctx, args[1])
 		if err != nil {
@@ -201,7 +201,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "account-authorize":
 		if len(args) < 3 {
-			return errors.New("usage: parity account-authorize <email> <redirect-url>")
+			return errors.New("usage: ryft-dev account-authorize <email> <redirect-url>")
 		}
 		authorization, err := client.Accounts.CreateAuthLink(ctx, ryft.CreateAccountAuthorizationRequest{
 			Email:       args[1],
@@ -214,7 +214,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "person-create":
 		if len(args) < 3 {
-			return errors.New("usage: parity person-create <account-id> <email> [metadata-json]")
+			return errors.New("usage: ryft-dev person-create <account-id> <email> [metadata-json]")
 		}
 		accountID := args[1]
 		request, err := personCreateRequest(args[2:])
@@ -229,7 +229,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "person-list":
 		if len(args) < 3 {
-			return errors.New("usage: parity person-list <limit> <account-id>")
+			return errors.New("usage: ryft-dev person-list <limit> <account-id>")
 		}
 		limit, err := parseIntArg(args[1], "limit")
 		if err != nil {
@@ -243,7 +243,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payout-method-create":
 		if len(args) < 3 {
-			return errors.New("usage: parity payout-method-create <account-id> <display-name>")
+			return errors.New("usage: ryft-dev payout-method-create <account-id> <display-name>")
 		}
 		accountID := args[1]
 		request := payoutMethodCreateRequest(args[2:])
@@ -255,7 +255,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payout-method-list":
 		if len(args) < 3 {
-			return errors.New("usage: parity payout-method-list <limit> <account-id>")
+			return errors.New("usage: ryft-dev payout-method-list <limit> <account-id>")
 		}
 		limit, err := parseIntArg(args[1], "limit")
 		if err != nil {
@@ -269,7 +269,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payout-create":
 		if len(args) < 5 {
-			return errors.New("usage: parity payout-create <account-id> <amount> <currency> <payout-method-id> [metadata-json]")
+			return errors.New("usage: ryft-dev payout-create <account-id> <amount> <currency> <payout-method-id> [metadata-json]")
 		}
 		accountID := args[1]
 		request, err := payoutCreateRequest(args[2:])
@@ -284,7 +284,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "transfer-create":
 		if len(args) < 4 {
-			return errors.New("usage: parity transfer-create <destination-account-id> <amount> <currency> [metadata-json]")
+			return errors.New("usage: ryft-dev transfer-create <destination-account-id> <amount> <currency> [metadata-json]")
 		}
 		request, err := transferCreateRequest(args[1:])
 		if err != nil {
@@ -298,7 +298,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "transfer-list":
 		if len(args) < 2 {
-			return errors.New("usage: parity transfer-list <limit>")
+			return errors.New("usage: ryft-dev transfer-list <limit>")
 		}
 		limit, err := parseIntArg(args[1], "limit")
 		if err != nil {
@@ -312,7 +312,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "balance-list":
 		if len(args) < 3 {
-			return errors.New("usage: parity balance-list <currency> <account-id>")
+			return errors.New("usage: ryft-dev balance-list <currency> <account-id>")
 		}
 		balances, err := client.Balances.List(ctx, args[1], args[2])
 		if err != nil {
@@ -322,7 +322,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "balance-transaction-list":
 		if len(args) < 3 {
-			return errors.New("usage: parity balance-transaction-list <limit> <account-id>")
+			return errors.New("usage: ryft-dev balance-transaction-list <limit> <account-id>")
 		}
 		limit, err := parseIntArg(args[1], "limit")
 		if err != nil {
@@ -354,7 +354,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "platform-fee-refund-list":
 		if len(args) < 2 {
-			return errors.New("usage: parity platform-fee-refund-list <platform-fee-id>")
+			return errors.New("usage: ryft-dev platform-fee-refund-list <platform-fee-id>")
 		}
 		refunds, err := client.PlatformFees.GetRefunds(ctx, args[1])
 		if err != nil {
@@ -375,7 +375,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "file-create":
 		if len(args) < 2 {
-			return errors.New("usage: parity file-create <file-path> [category]")
+			return errors.New("usage: ryft-dev file-create <file-path> [category]")
 		}
 		category := "Evidence"
 		if len(args) > 2 && args[2] != "" {
@@ -399,7 +399,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "dispute-accept":
 		if len(args) < 2 {
-			return errors.New("usage: parity dispute-accept <dispute-id>")
+			return errors.New("usage: ryft-dev dispute-accept <dispute-id>")
 		}
 		dispute, err := client.Disputes.Accept(ctx, args[1])
 		if err != nil {
@@ -409,7 +409,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "dispute-challenge":
 		if len(args) < 2 {
-			return errors.New("usage: parity dispute-challenge <dispute-id>")
+			return errors.New("usage: ryft-dev dispute-challenge <dispute-id>")
 		}
 		dispute, err := client.Disputes.Challenge(ctx, args[1])
 		if err != nil {
@@ -419,7 +419,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "dispute-add-evidence":
 		if len(args) < 3 {
-			return errors.New("usage: parity dispute-add-evidence <dispute-id> <file-id>")
+			return errors.New("usage: ryft-dev dispute-add-evidence <dispute-id> <file-id>")
 		}
 		dispute, err := client.Disputes.AddEvidence(ctx, args[1], ryft.AddDisputeEvidenceRequest{
 			Files: map[string]any{
@@ -435,7 +435,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "dispute-delete-evidence":
 		if len(args) < 2 {
-			return errors.New("usage: parity dispute-delete-evidence <dispute-id>")
+			return errors.New("usage: ryft-dev dispute-delete-evidence <dispute-id>")
 		}
 		dispute, err := client.Disputes.DeleteEvidence(ctx, args[1], ryft.DeleteDisputeEvidenceRequest{
 			Files: []string{"uncategorised"},
@@ -447,7 +447,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "customer-payment-method-list":
 		if len(args) < 2 {
-			return errors.New("usage: parity customer-payment-method-list <customer-id>")
+			return errors.New("usage: ryft-dev customer-payment-method-list <customer-id>")
 		}
 		paymentMethods, err := client.Customers.GetPaymentMethods(ctx, args[1])
 		if err != nil {
@@ -457,7 +457,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payment-method-update":
 		if len(args) < 3 {
-			return errors.New("usage: parity payment-method-update <id> <billing-address-json>")
+			return errors.New("usage: ryft-dev payment-method-update <id> <billing-address-json>")
 		}
 		billingAddress, err := parseMetadata(args[2])
 		if err != nil {
@@ -473,7 +473,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payment-method-delete":
 		if len(args) < 2 {
-			return errors.New("usage: parity payment-method-delete <id>")
+			return errors.New("usage: ryft-dev payment-method-delete <id>")
 		}
 		deleted, err := client.PaymentMethods.Delete(ctx, args[1])
 		if err != nil {
@@ -483,7 +483,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "account-link-create":
 		if len(args) < 3 {
-			return errors.New("usage: parity account-link-create <account-id> <redirect-url>")
+			return errors.New("usage: ryft-dev account-link-create <account-id> <redirect-url>")
 		}
 		link, err := client.AccountLinks.GenerateTemporaryAccountLink(
 			ctx,
@@ -499,7 +499,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "subscription-create":
 		if len(args) < 3 {
-			return errors.New("usage: parity subscription-create <customer-id> <payment-method-id> [options-json]")
+			return errors.New("usage: ryft-dev subscription-create <customer-id> <payment-method-id> [options-json]")
 		}
 		request, err := subscriptionCreateRequest(args[1:])
 		if err != nil {
@@ -513,7 +513,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "subscription-update":
 		if len(args) < 2 {
-			return errors.New("usage: parity subscription-update <subscription-id> [description] [metadata-json]")
+			return errors.New("usage: ryft-dev subscription-update <subscription-id> [description] [metadata-json]")
 		}
 		request, err := subscriptionUpdateRequest(args[2:])
 		if err != nil {
@@ -535,7 +535,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "subscription-payment-session-list":
 		if len(args) < 2 {
-			return errors.New("usage: parity subscription-payment-session-list <subscription-id>")
+			return errors.New("usage: ryft-dev subscription-payment-session-list <subscription-id>")
 		}
 		startTimestamp, endTimestamp := collectionWindowFromEnv()
 		paymentSessions, err := client.Subscriptions.GetPaymentSessions(
@@ -554,7 +554,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payment-session-refund":
 		if len(args) < 2 {
-			return errors.New("usage: parity payment-session-refund <payment-session-id> [options-json]")
+			return errors.New("usage: ryft-dev payment-session-refund <payment-session-id> [options-json]")
 		}
 		request, err := refundPaymentSessionRequest(args[2:])
 		if err != nil {
@@ -568,7 +568,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "subscription-pause":
 		if len(args) < 2 {
-			return errors.New("usage: parity subscription-pause <subscription-id> [reason] [resume-timestamp] [unschedule]")
+			return errors.New("usage: ryft-dev subscription-pause <subscription-id> [reason] [resume-timestamp] [unschedule]")
 		}
 		request, err := subscriptionPauseRequest(args[2:])
 		if err != nil {
@@ -582,7 +582,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "subscription-resume":
 		if len(args) < 2 {
-			return errors.New("usage: parity subscription-resume <subscription-id>")
+			return errors.New("usage: ryft-dev subscription-resume <subscription-id>")
 		}
 		subscription, err := client.Subscriptions.Resume(ctx, args[1])
 		if err != nil {
@@ -592,7 +592,7 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "subscription-cancel":
 		if len(args) < 2 {
-			return errors.New("usage: parity subscription-cancel <subscription-id>")
+			return errors.New("usage: ryft-dev subscription-cancel <subscription-id>")
 		}
 		deleted, err := client.Subscriptions.Cancel(ctx, args[1])
 		if err != nil {

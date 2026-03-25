@@ -437,7 +437,7 @@ func TestRunUsageAndValidationErrors(t *testing.T) {
 		{
 			name:    "no args",
 			args:    nil,
-			wantErr: "usage: parity <customer-create|customer-update|entity-get> ...",
+			wantErr: "usage: ryft-dev <customer-create|customer-update|entity-get> ...",
 		},
 		{
 			name:    "unknown command",
@@ -447,7 +447,7 @@ func TestRunUsageAndValidationErrors(t *testing.T) {
 		{
 			name:    "customer create usage",
 			args:    []string{"customer-create"},
-			wantErr: "usage: parity customer-create <email> [first-name] [last-name] [metadata-json]",
+			wantErr: "usage: ryft-dev customer-create <email> [first-name] [last-name] [metadata-json]",
 		},
 		{
 			name:    "payment session update invalid amount",
