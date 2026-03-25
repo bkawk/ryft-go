@@ -100,9 +100,20 @@ func TestCustomerUpdateRequest(t *testing.T) {
 func TestPaymentSessionCreateRequest(t *testing.T) {
 	t.Parallel()
 
-	request, err := paymentSessionCreateRequest([]string{"2500", "GBP", "buyer@example.com", "Ecommerce", "CustomerEntry", "Automatic", `{"flow":"checkout"}`})
+	request, accountID, err := paymentSessionCreateRequest([]string{`{
+		"amount": 2500,
+		"currency": "GBP",
+		"customerEmail": "buyer@example.com",
+		"paymentType": "Ecommerce",
+		"entryMode": "CustomerEntry",
+		"captureFlow": "Automatic",
+		"metadata": {"flow":"checkout"}
+	}`})
 	if err != nil {
 		t.Fatalf("paymentSessionCreateRequest returned error: %v", err)
+	}
+	if accountID != "" {
+		t.Fatalf("accountID = %q, want empty", accountID)
 	}
 
 	if request.Amount != 2500 {
@@ -136,9 +147,17 @@ func TestParseMetadata(t *testing.T) {
 func TestPaymentSessionUpdateRequest(t *testing.T) {
 	t.Parallel()
 
-	request, err := paymentSessionUpdateRequest([]string{"775", "updated@example.com", "Automatic", `{"scenario":"update"}`})
+	request, accountID, err := paymentSessionUpdateRequest([]string{`{
+		"amount": 775,
+		"customerEmail": "updated@example.com",
+		"captureFlow": "Automatic",
+		"metadata": {"scenario":"update"}
+	}`})
 	if err != nil {
 		t.Fatalf("paymentSessionUpdateRequest returned error: %v", err)
+	}
+	if accountID != "" {
+		t.Fatalf("accountID = %q, want empty", accountID)
 	}
 
 	if request.Amount == nil || *request.Amount != 775 {
@@ -190,6 +209,97 @@ func TestRefundPaymentSessionRequest(t *testing.T) {
 	}
 	if request.RefundPlatformFee != true {
 		t.Fatal("RefundPlatformFee = false, want true")
+	}
+}
+
+func TestPaymentSessionCreateRequestSupportsAdvancedOptions(t *testing.T) {
+	t.Parallel()
+
+	request, accountID, err := paymentSessionCreateRequest([]string{`{
+		"amount": 500,
+		"currency": "GBP",
+		"accountId": "ac_123",
+		"customerId": "cus_123",
+		"paymentType": "Recurring",
+		"entryMode": "Online",
+		"captureFlow": "Automatic",
+		"returnUrl": "https://example.com/custom-return",
+		"platformFee": 50,
+		"splits": {
+			"items": [
+				{
+					"accountId": "ac_split",
+					"amount": 500,
+					"description": "sub account split",
+					"fee": { "amount": 25 },
+					"metadata": { "team": "platform" }
+				}
+			]
+		},
+		"previousPaymentId": "ps_prev",
+		"rebillingDetail": {
+			"amountVariance": "Fixed",
+			"numberOfDaysBetweenPayments": 30,
+			"totalNumberOfPayments": 12,
+			"currentPaymentNumber": 2
+		},
+		"attemptPayment": {
+			"paymentMethod": { "id": "pm_123" }
+		},
+		"metadata": { "scenario": "advanced" }
+	}`})
+	if err != nil {
+		t.Fatalf("paymentSessionCreateRequest returned error: %v", err)
+	}
+
+	if accountID != "ac_123" {
+		t.Fatalf("accountID = %q, want %q", accountID, "ac_123")
+	}
+	if request.PlatformFee != 50 {
+		t.Fatalf("PlatformFee = %d, want 50", request.PlatformFee)
+	}
+	if request.CustomerDetails == nil || request.CustomerDetails.ID != "cus_123" {
+		t.Fatalf("CustomerDetails = %#v, want id cus_123", request.CustomerDetails)
+	}
+	if request.PreviousPayment == nil || request.PreviousPayment.ID != "ps_prev" {
+		t.Fatalf("PreviousPayment = %#v, want id ps_prev", request.PreviousPayment)
+	}
+	if request.RebillingDetail == nil || request.RebillingDetail.CurrentPaymentNumber != 2 {
+		t.Fatalf("RebillingDetail = %#v, want currentPaymentNumber 2", request.RebillingDetail)
+	}
+	if request.Splits == nil || len(request.Splits.Items) != 1 {
+		t.Fatalf("Splits = %#v, want 1 item", request.Splits)
+	}
+	if request.Splits.Items[0].Fee == nil || request.Splits.Items[0].Fee.Amount != 25 {
+		t.Fatalf("Split fee = %#v, want amount 25", request.Splits.Items[0].Fee)
+	}
+	if request.Metadata["scenario"] != "advanced" {
+		t.Fatalf("Metadata[scenario] = %q, want %q", request.Metadata["scenario"], "advanced")
+	}
+}
+
+func TestPaymentSessionUpdateRequestSupportsAccountID(t *testing.T) {
+	t.Parallel()
+
+	request, accountID, err := paymentSessionUpdateRequest([]string{`{
+		"amount": 775,
+		"accountId": "ac_123",
+		"customerEmail": "buyer@example.com",
+		"captureFlow": "Automatic",
+		"metadata": { "scenario": "update" }
+	}`})
+	if err != nil {
+		t.Fatalf("paymentSessionUpdateRequest returned error: %v", err)
+	}
+
+	if accountID != "ac_123" {
+		t.Fatalf("accountID = %q, want %q", accountID, "ac_123")
+	}
+	if request.Amount == nil || *request.Amount != 775 {
+		t.Fatalf("Amount = %#v, want 775", request.Amount)
+	}
+	if request.Metadata["scenario"] != "update" {
+		t.Fatalf("Metadata[scenario] = %q, want %q", request.Metadata["scenario"], "update")
 	}
 }
 
@@ -452,7 +562,7 @@ func TestRunUsageAndValidationErrors(t *testing.T) {
 		{
 			name:    "payment session update invalid amount",
 			args:    []string{"payment-session-update", "ps_123", "oops"},
-			wantErr: "parse amount:",
+			wantErr: "parse payment session update options json:",
 		},
 		{
 			name:    "subscription pause invalid resume timestamp",

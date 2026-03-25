@@ -86,16 +86,16 @@ func run(ctx context.Context, args []string) error {
 		}
 		return handleEntityGet(ctx, client, entityType, entityID, parentID)
 	case "payment-session-create":
-		if len(args) < 7 {
-			return errors.New("usage: ryft-dev payment-session-create <amount> <currency> <customer-email> <payment-type> <entry-mode> <capture-flow> [metadata-json]")
+		if len(args) < 1 {
+			return errors.New("usage: ryft-dev payment-session-create <options-json>")
 		}
 
-		request, err := paymentSessionCreateRequest(args[1:])
+		request, accountID, err := paymentSessionCreateRequest(args[1:])
 		if err != nil {
 			return err
 		}
 
-		paymentSession, err := client.PaymentSessions.Create(ctx, request)
+		paymentSession, err := client.PaymentSessions.CreateForAccount(ctx, request, accountID)
 		if err != nil {
 			return err
 		}
@@ -104,16 +104,16 @@ func run(ctx context.Context, args []string) error {
 		return nil
 	case "payment-session-update":
 		if len(args) < 2 {
-			return errors.New("usage: ryft-dev payment-session-update <id> [amount] [customer-email] [capture-flow] [metadata-json]")
+			return errors.New("usage: ryft-dev payment-session-update <id> <options-json>")
 		}
 
 		paymentSessionID := args[1]
-		request, err := paymentSessionUpdateRequest(args[2:])
+		request, accountID, err := paymentSessionUpdateRequest(args[2:])
 		if err != nil {
 			return err
 		}
 
-		paymentSession, err := client.PaymentSessions.Update(ctx, paymentSessionID, request)
+		paymentSession, err := client.PaymentSessions.UpdateForAccount(ctx, paymentSessionID, request, accountID)
 		if err != nil {
 			return err
 		}
@@ -615,7 +615,7 @@ func handleEntityGet(ctx context.Context, client *ryft.Client, entityType string
 		printJSON(os.Stdout, customer)
 		return nil
 	case "payment-session":
-		paymentSession, err := client.PaymentSessions.Get(ctx, entityID)
+		paymentSession, err := client.PaymentSessions.GetForAccount(ctx, entityID, parentID)
 		if err != nil {
 			return err
 		}
@@ -771,58 +771,134 @@ func customerUpdateRequest(args []string) (ryft.UpdateCustomerRequest, error) {
 	return request, nil
 }
 
-func paymentSessionCreateRequest(args []string) (ryft.CreatePaymentSessionRequest, error) {
-	amount, err := parseIntArg(args[0], "amount")
-	if err != nil {
-		return ryft.CreatePaymentSessionRequest{}, err
+func paymentSessionCreateRequest(args []string) (ryft.CreatePaymentSessionRequest, string, error) {
+	options := map[string]any{}
+	if len(args) > 0 && args[0] != "" {
+		if err := json.Unmarshal([]byte(args[0]), &options); err != nil {
+			return ryft.CreatePaymentSessionRequest{}, "", fmt.Errorf("parse payment session options json: %w", err)
+		}
 	}
 
 	request := ryft.CreatePaymentSessionRequest{
-		Amount:        amount,
-		Currency:      args[1],
-		CustomerEmail: args[2],
-		PaymentType:   args[3],
-		EntryMode:     args[4],
-		CaptureFlow:   args[5],
-		ReturnURL:     "https://example.com/return",
+		Amount:        intFromAny(options["amount"], 500),
+		Currency:      stringFromAny(options["currency"], "GBP"),
+		CustomerEmail: stringFromAny(options["customerEmail"], ""),
+		PaymentType:   stringFromAny(options["paymentType"], "Standard"),
+		EntryMode:     stringFromAny(options["entryMode"], "Online"),
+		CaptureFlow:   stringFromAny(options["captureFlow"], "Automatic"),
+		ReturnURL:     stringFromAny(options["returnUrl"], "https://example.com/return"),
+		PlatformFee:   intFromAny(options["platformFee"], 0),
 	}
 
-	if len(args) > 6 && args[6] != "" {
-		metadata, err := parseMetadata(args[6])
-		if err != nil {
-			return ryft.CreatePaymentSessionRequest{}, err
+	if rawMetadata, ok := options["metadata"].(map[string]any); ok {
+		metadata := map[string]string{}
+		for key, value := range rawMetadata {
+			metadata[key] = fmt.Sprint(value)
 		}
 		request.Metadata = metadata
 	}
 
-	return request, nil
+	if customerID := stringFromAny(options["customerId"], ""); customerID != "" {
+		request.CustomerDetails = &ryft.PaymentSessionCustomer{ID: customerID}
+	}
+
+	if previousPaymentID := stringFromAny(options["previousPaymentId"], ""); previousPaymentID != "" {
+		request.PreviousPayment = &ryft.PaymentSessionReference{ID: previousPaymentID}
+	}
+
+	if rawRebilling, ok := options["rebillingDetail"].(map[string]any); ok {
+		request.RebillingDetail = &ryft.RebillingDetail{
+			AmountVariance:              stringFromAny(rawRebilling["amountVariance"], ""),
+			NumberOfDaysBetweenPayments: intFromAny(rawRebilling["numberOfDaysBetweenPayments"], 0),
+			TotalNumberOfPayments:       intFromAny(rawRebilling["totalNumberOfPayments"], 0),
+			CurrentPaymentNumber:        intFromAny(rawRebilling["currentPaymentNumber"], 0),
+		}
+	}
+
+	if rawSplits, ok := options["splits"].(map[string]any); ok {
+		request.Splits = buildSplitPaymentRequest(rawSplits)
+	}
+
+	if rawAttemptPayment, ok := options["attemptPayment"].(map[string]any); ok {
+		request.AttemptPayment = rawAttemptPayment
+	}
+
+	return request, stringFromAny(options["accountId"], ""), nil
 }
 
-func paymentSessionUpdateRequest(args []string) (ryft.UpdatePaymentSessionRequest, error) {
+func paymentSessionUpdateRequest(args []string) (ryft.UpdatePaymentSessionRequest, string, error) {
 	var request ryft.UpdatePaymentSessionRequest
+	accountID := ""
 
-	if len(args) > 0 && args[0] != "" {
-		amount, err := parseIntArg(args[0], "amount")
-		if err != nil {
-			return ryft.UpdatePaymentSessionRequest{}, err
-		}
+	if len(args) == 0 || args[0] == "" {
+		return request, accountID, nil
+	}
+
+	options := map[string]any{}
+	if err := json.Unmarshal([]byte(args[0]), &options); err != nil {
+		return ryft.UpdatePaymentSessionRequest{}, "", fmt.Errorf("parse payment session update options json: %w", err)
+	}
+
+	if value, ok := options["amount"]; ok {
+		amount := intFromAny(value, 0)
 		request.Amount = &amount
 	}
-	if len(args) > 1 {
-		request.CustomerEmail = args[1]
-	}
-	if len(args) > 2 {
-		request.CaptureFlow = args[2]
-	}
-	if len(args) > 3 && args[3] != "" {
-		metadata, err := parseMetadata(args[3])
-		if err != nil {
-			return ryft.UpdatePaymentSessionRequest{}, err
+	request.CustomerEmail = stringFromAny(options["customerEmail"], "")
+	request.CaptureFlow = stringFromAny(options["captureFlow"], "")
+	accountID = stringFromAny(options["accountId"], "")
+
+	if rawMetadata, ok := options["metadata"].(map[string]any); ok {
+		metadata := map[string]string{}
+		for key, value := range rawMetadata {
+			metadata[key] = fmt.Sprint(value)
 		}
 		request.Metadata = metadata
 	}
 
-	return request, nil
+	return request, accountID, nil
+}
+
+func buildSplitPaymentRequest(rawSplits map[string]any) *ryft.CreateSplitPaymentRequest {
+	rawItems, ok := rawSplits["items"].([]any)
+	if !ok || len(rawItems) == 0 {
+		return nil
+	}
+
+	items := make([]ryft.SplitItem, 0, len(rawItems))
+	for _, rawItem := range rawItems {
+		itemMap, ok := rawItem.(map[string]any)
+		if !ok {
+			continue
+		}
+
+		item := ryft.SplitItem{
+			AccountID:   stringFromAny(itemMap["accountId"], ""),
+			Amount:      intFromAny(itemMap["amount"], 0),
+			Description: stringFromAny(itemMap["description"], ""),
+		}
+
+		if rawFee, ok := itemMap["fee"].(map[string]any); ok {
+			item.Fee = &ryft.SplitFee{
+				Amount: intFromAny(rawFee["amount"], 0),
+			}
+		}
+
+		if rawMetadata, ok := itemMap["metadata"].(map[string]any); ok {
+			metadata := map[string]string{}
+			for key, value := range rawMetadata {
+				metadata[key] = fmt.Sprint(value)
+			}
+			item.Metadata = metadata
+		}
+
+		items = append(items, item)
+	}
+
+	if len(items) == 0 {
+		return nil
+	}
+
+	return &ryft.CreateSplitPaymentRequest{Items: items}
 }
 
 func parseIntArg(raw string, fieldName string) (int, error) {

@@ -449,26 +449,65 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 
 		switch {
 		case r.Method == http.MethodPost && r.URL.Path == "/payment-sessions":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
 			payload := decodeJSONBody(t, r)
 			if payload["amount"] != float64(2000) {
 				t.Fatalf("amount = %v, want %v", payload["amount"], 2000)
 			}
+			if payload["platformFee"] != float64(50) {
+				t.Fatalf("platformFee = %v, want %v", payload["platformFee"], 50)
+			}
+			customerDetails := payload["customerDetails"].(map[string]any)
+			if customerDetails["id"] != "cus_123" {
+				t.Fatalf("customerDetails.id = %v, want %q", customerDetails["id"], "cus_123")
+			}
+			previousPayment := payload["previousPayment"].(map[string]any)
+			if previousPayment["id"] != "ps_prev" {
+				t.Fatalf("previousPayment.id = %v, want %q", previousPayment["id"], "ps_prev")
+			}
+			rebillingDetail := payload["rebillingDetail"].(map[string]any)
+			if rebillingDetail["currentPaymentNumber"] != float64(2) {
+				t.Fatalf("rebillingDetail.currentPaymentNumber = %v, want %v", rebillingDetail["currentPaymentNumber"], 2)
+			}
+			splits := payload["splits"].(map[string]any)
+			items := splits["items"].([]any)
+			if len(items) != 1 {
+				t.Fatalf("len(splits.items) = %d, want 1", len(items))
+			}
+			item := items[0].(map[string]any)
+			if item["accountId"] != "ac_split" {
+				t.Fatalf("splits.items[0].accountId = %v, want %q", item["accountId"], "ac_split")
+			}
 			_, _ = io.WriteString(w, `{"id":"ps_123","amount":2000,"currency":"GBP"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/payment-sessions/ps_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
 			_, _ = io.WriteString(w, `{"id":"ps_123","currency":"GBP"}`)
 		case r.Method == http.MethodPatch && r.URL.Path == "/payment-sessions/ps_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
 			payload := decodeJSONBody(t, r)
 			if payload["customerEmail"] != "buyer@example.com" {
 				t.Fatalf("customerEmail = %v, want %q", payload["customerEmail"], "buyer@example.com")
 			}
 			_, _ = io.WriteString(w, `{"id":"ps_123","customerEmail":"buyer@example.com"}`)
 		case r.Method == http.MethodPost && r.URL.Path == "/payment-sessions/ps_123/refunds":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
 			payload := decodeJSONBody(t, r)
 			if payload["refundPlatformFee"] != true {
 				t.Fatalf("refundPlatformFee = %v, want true", payload["refundPlatformFee"])
 			}
 			_, _ = io.WriteString(w, `{"id":"txn_123","paymentSessionId":"ps_123","type":"Refund","refundedAmount":2000}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/payment-sessions/ps_123/transactions":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
 			assertQueryValues(t, r.URL.Query(), map[string]string{
 				"startTimestamp": "100",
 				"endTimestamp":   "200",
@@ -477,6 +516,9 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 			})
 			_, _ = io.WriteString(w, `{"items":[{"id":"txn_123","paymentSessionId":"ps_123"}]}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/payment-sessions/ps_123/transactions/txn_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
 			_, _ = io.WriteString(w, `{"id":"txn_123","paymentSessionId":"ps_123","status":"Approved"}`)
 		case r.Method == http.MethodGet && r.URL.Path == "/payment-methods/pm_123":
 			_, _ = io.WriteString(w, `{"id":"pm_123","type":"Card"}`)
@@ -496,58 +538,78 @@ func TestPaymentSessionsAndPaymentMethodsMethods(t *testing.T) {
 
 	ctx := context.Background()
 
-	paymentSession, err := client.PaymentSessions.Create(ctx, CreatePaymentSessionRequest{
-		Amount:   2000,
-		Currency: "GBP",
-	})
+	paymentSession, err := client.PaymentSessions.CreateForAccount(ctx, CreatePaymentSessionRequest{
+		Amount:          2000,
+		Currency:        "GBP",
+		PlatformFee:     50,
+		CustomerDetails: &PaymentSessionCustomer{ID: "cus_123"},
+		PreviousPayment: &PaymentSessionReference{ID: "ps_prev"},
+		RebillingDetail: &RebillingDetail{
+			AmountVariance:              "Fixed",
+			NumberOfDaysBetweenPayments: 30,
+			TotalNumberOfPayments:       12,
+			CurrentPaymentNumber:        2,
+		},
+		Splits: &CreateSplitPaymentRequest{
+			Items: []SplitItem{
+				{
+					AccountID:   "ac_split",
+					Amount:      2000,
+					Description: "sub account split",
+					Fee:         &SplitFee{Amount: 25},
+					Metadata:    map[string]string{"scenario": "platform"},
+				},
+			},
+		},
+	}, "ac_123")
 	if err != nil {
-		t.Fatalf("PaymentSessions.Create returned error: %v", err)
+		t.Fatalf("PaymentSessions.CreateForAccount returned error: %v", err)
 	}
 	if paymentSession.ID != "ps_123" {
 		t.Fatalf("paymentSession.ID = %q, want %q", paymentSession.ID, "ps_123")
 	}
 
-	gotPaymentSession, err := client.PaymentSessions.Get(ctx, "ps_123")
+	gotPaymentSession, err := client.PaymentSessions.GetForAccount(ctx, "ps_123", "ac_123")
 	if err != nil {
-		t.Fatalf("PaymentSessions.Get returned error: %v", err)
+		t.Fatalf("PaymentSessions.GetForAccount returned error: %v", err)
 	}
 	if gotPaymentSession.Currency != "GBP" {
 		t.Fatalf("gotPaymentSession.Currency = %q, want %q", gotPaymentSession.Currency, "GBP")
 	}
 
-	updatedPaymentSession, err := client.PaymentSessions.Update(ctx, "ps_123", UpdatePaymentSessionRequest{
+	updatedPaymentSession, err := client.PaymentSessions.UpdateForAccount(ctx, "ps_123", UpdatePaymentSessionRequest{
 		CustomerEmail: "buyer@example.com",
-	})
+	}, "ac_123")
 	if err != nil {
-		t.Fatalf("PaymentSessions.Update returned error: %v", err)
+		t.Fatalf("PaymentSessions.UpdateForAccount returned error: %v", err)
 	}
 	if updatedPaymentSession.CustomerEmail != "buyer@example.com" {
 		t.Fatalf("updatedPaymentSession.CustomerEmail = %q, want %q", updatedPaymentSession.CustomerEmail, "buyer@example.com")
 	}
 
-	refund, err := client.PaymentSessions.Refund(ctx, "ps_123", RefundPaymentSessionRequest{
+	refund, err := client.PaymentSessions.RefundForAccount(ctx, "ps_123", RefundPaymentSessionRequest{
 		Amount:            2000,
 		Reason:            "requested_by_customer",
 		RefundPlatformFee: true,
-	})
+	}, "ac_123")
 	if err != nil {
-		t.Fatalf("PaymentSessions.Refund returned error: %v", err)
+		t.Fatalf("PaymentSessions.RefundForAccount returned error: %v", err)
 	}
 	if refund.ID != "txn_123" {
 		t.Fatalf("refund.ID = %q, want %q", refund.ID, "txn_123")
 	}
 
-	transactions, err := client.PaymentSessions.ListTransactions(ctx, "ps_123", 100, 200, false, 3)
+	transactions, err := client.PaymentSessions.ListTransactionsForAccount(ctx, "ps_123", 100, 200, false, 3, "ac_123")
 	if err != nil {
-		t.Fatalf("PaymentSessions.ListTransactions returned error: %v", err)
+		t.Fatalf("PaymentSessions.ListTransactionsForAccount returned error: %v", err)
 	}
 	if len(transactions.Items) != 1 {
 		t.Fatalf("len(transactions.Items) = %d, want 1", len(transactions.Items))
 	}
 
-	transaction, err := client.PaymentSessions.GetTransaction(ctx, "ps_123", "txn_123")
+	transaction, err := client.PaymentSessions.GetTransactionForAccount(ctx, "ps_123", "txn_123", "ac_123")
 	if err != nil {
-		t.Fatalf("PaymentSessions.GetTransaction returned error: %v", err)
+		t.Fatalf("PaymentSessions.GetTransactionForAccount returned error: %v", err)
 	}
 	if transaction.Status != "Approved" {
 		t.Fatalf("transaction.Status = %q, want %q", transaction.Status, "Approved")
