@@ -109,6 +109,12 @@ If `BaseURL` is omitted, the SDK selects the Ryft sandbox or live API automatica
 - platform fees: list, get, refunds list
 - files: create, list, get
 - disputes: list, get, accept, challenge, add evidence, delete evidence
+- apple pay: register domain, list domains, get domain, delete domain, create web session
+- in-person products: list, get
+- in-person skus: list, get
+- in-person orders: list, get
+- in-person locations: create, list, get, update, delete
+- in-person terminals: create, list, get, update, delete, initiate payment, initiate refund, cancel action, confirm receipt
 
 ## Credentials
 

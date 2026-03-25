@@ -51,6 +51,12 @@ type Client struct {
 	PlatformFees        *PlatformFeesService
 	Files               *FilesService
 	Disputes            *DisputesService
+	ApplePay            *ApplePayService
+	InPersonProducts    *InPersonProductsService
+	InPersonSkus        *InPersonSkusService
+	InPersonOrders      *InPersonOrdersService
+	InPersonLocations   *InPersonLocationsService
+	InPersonTerminals   *InPersonTerminalsService
 }
 
 func NewClient(config Config) (*Client, error) {
@@ -94,6 +100,12 @@ func NewClient(config Config) (*Client, error) {
 	client.PlatformFees = &PlatformFeesService{client: client}
 	client.Files = &FilesService{client: client}
 	client.Disputes = &DisputesService{client: client}
+	client.ApplePay = &ApplePayService{client: client}
+	client.InPersonProducts = &InPersonProductsService{client: client}
+	client.InPersonSkus = &InPersonSkusService{client: client}
+	client.InPersonOrders = &InPersonOrdersService{client: client}
+	client.InPersonLocations = &InPersonLocationsService{client: client}
+	client.InPersonTerminals = &InPersonTerminalsService{client: client}
 
 	return client, nil
 }

@@ -269,6 +269,445 @@ func TestAccountsAndAccountLinksMethods(t *testing.T) {
 	}
 }
 
+func TestApplePayMethods(t *testing.T) {
+	t.Parallel()
+
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodPost && r.URL.Path == "/apple-pay/web-domains":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			if payload["domainName"] != "checkout.example.com" {
+				t.Fatalf("domainName = %v, want %q", payload["domainName"], "checkout.example.com")
+			}
+			_, _ = io.WriteString(w, `{"id":"apwd_123","domainName":"checkout.example.com"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/apple-pay/web-domains":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			assertQueryValues(t, r.URL.Query(), map[string]string{
+				"ascending":   "true",
+				"limit":       "10",
+				"startsAfter": "apwd_prev",
+			})
+			_, _ = io.WriteString(w, `{"items":[{"id":"apwd_123","domainName":"checkout.example.com"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/apple-pay/web-domains/apwd_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"apwd_123","domainName":"checkout.example.com"}`)
+		case r.Method == http.MethodDelete && r.URL.Path == "/apple-pay/web-domains/apwd_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"apwd_123"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/apple-pay/sessions":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			if payload["displayName"] != "Ryft Demo" {
+				t.Fatalf("displayName = %v, want %q", payload["displayName"], "Ryft Demo")
+			}
+			_, _ = io.WriteString(w, `{"sessionObject":"apple_pay_session"}`)
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	})
+
+	ctx := context.Background()
+
+	domain, err := client.ApplePay.RegisterDomainForAccount(ctx, RegisterApplePayWebDomainRequest{
+		DomainName: "checkout.example.com",
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("RegisterDomainForAccount returned error: %v", err)
+	}
+	if domain.ID != "apwd_123" {
+		t.Fatalf("domain.ID = %q, want %q", domain.ID, "apwd_123")
+	}
+
+	domains, err := client.ApplePay.ListDomainsForAccount(ctx, true, 10, "apwd_prev", "ac_123")
+	if err != nil {
+		t.Fatalf("ListDomainsForAccount returned error: %v", err)
+	}
+	if len(domains.Items) != 1 {
+		t.Fatalf("len(domains.Items) = %d, want 1", len(domains.Items))
+	}
+
+	gotDomain, err := client.ApplePay.GetDomainForAccount(ctx, "apwd_123", "ac_123")
+	if err != nil {
+		t.Fatalf("GetDomainForAccount returned error: %v", err)
+	}
+	if gotDomain.DomainName != "checkout.example.com" {
+		t.Fatalf("gotDomain.DomainName = %q, want %q", gotDomain.DomainName, "checkout.example.com")
+	}
+
+	deleted, err := client.ApplePay.DeleteDomainForAccount(ctx, "apwd_123", "ac_123")
+	if err != nil {
+		t.Fatalf("DeleteDomainForAccount returned error: %v", err)
+	}
+	if deleted.ID != "apwd_123" {
+		t.Fatalf("deleted.ID = %q, want %q", deleted.ID, "apwd_123")
+	}
+
+	session, err := client.ApplePay.CreateSessionForAccount(ctx, CreateApplePayWebSessionRequest{
+		DisplayName: "Ryft Demo",
+		DomainName:  "checkout.example.com",
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("CreateSessionForAccount returned error: %v", err)
+	}
+	if session.SessionObject != "apple_pay_session" {
+		t.Fatalf("session.SessionObject = %q, want %q", session.SessionObject, "apple_pay_session")
+	}
+}
+
+func TestInPersonMethods(t *testing.T) {
+	t.Parallel()
+
+	client := newTestClient(t, func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/products":
+			assertQueryValues(t, r.URL.Query(), map[string]string{
+				"ascending":   "true",
+				"limit":       "5",
+				"startsAfter": "ippd_prev",
+			})
+			_, _ = io.WriteString(w, `{"items":[{"id":"ippd_123","name":"Starter Kit"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/products/ippd_123":
+			_, _ = io.WriteString(w, `{"id":"ippd_123","name":"Starter Kit"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/skus":
+			assertQueryValues(t, r.URL.Query(), map[string]string{
+				"country":   "GB",
+				"limit":     "5",
+				"productId": "ippd_123",
+			})
+			_, _ = io.WriteString(w, `{"items":[{"id":"ipsku_123","productId":"ippd_123"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/skus/ipsku_123":
+			_, _ = io.WriteString(w, `{"id":"ipsku_123","productId":"ippd_123"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/orders":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			assertQueryValues(t, r.URL.Query(), map[string]string{
+				"ascending":   "true",
+				"limit":       "5",
+				"startsAfter": "ipord_prev",
+			})
+			_, _ = io.WriteString(w, `{"items":[{"id":"ipord_123","status":"ReadyToShip"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/orders/ipord_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"ipord_123","status":"ReadyToShip"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/in-person/locations":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			if payload["name"] != "Store 1" {
+				t.Fatalf("name = %v, want %q", payload["name"], "Store 1")
+			}
+			_, _ = io.WriteString(w, `{"id":"iploc_123","name":"Store 1"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/locations":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			assertQueryValues(t, r.URL.Query(), map[string]string{
+				"ascending":   "true",
+				"limit":       "5",
+				"startsAfter": "iploc_prev",
+			})
+			_, _ = io.WriteString(w, `{"items":[{"id":"iploc_123","name":"Store 1"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/locations/iploc_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"iploc_123","name":"Store 1"}`)
+		case r.Method == http.MethodPatch && r.URL.Path == "/in-person/locations/iploc_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			if payload["name"] != "Store 1A" {
+				t.Fatalf("name = %v, want %q", payload["name"], "Store 1A")
+			}
+			_, _ = io.WriteString(w, `{"id":"iploc_123","name":"Store 1A"}`)
+		case r.Method == http.MethodDelete && r.URL.Path == "/in-person/locations/iploc_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"iploc_123"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/in-person/terminals":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			if payload["serialNumber"] != "SN-001" {
+				t.Fatalf("serialNumber = %v, want %q", payload["serialNumber"], "SN-001")
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123","serialNumber":"SN-001"}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/terminals":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			assertQueryValues(t, r.URL.Query(), map[string]string{
+				"ascending":   "true",
+				"limit":       "5",
+				"startsAfter": "tml_prev",
+			})
+			_, _ = io.WriteString(w, `{"items":[{"id":"tml_123","serialNumber":"SN-001"}]}`)
+		case r.Method == http.MethodGet && r.URL.Path == "/in-person/terminals/tml_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123","serialNumber":"SN-001"}`)
+		case r.Method == http.MethodPatch && r.URL.Path == "/in-person/terminals/tml_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			if payload["name"] != "Front Desk" {
+				t.Fatalf("name = %v, want %q", payload["name"], "Front Desk")
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123","name":"Front Desk"}`)
+		case r.Method == http.MethodDelete && r.URL.Path == "/in-person/terminals/tml_123":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/in-person/terminals/tml_123/payment":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			amounts := payload["amounts"].(map[string]any)
+			if amounts["requested"] != float64(1200) {
+				t.Fatalf("amounts.requested = %v, want %v", amounts["requested"], float64(1200))
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123","status":"AwaitingCard"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/in-person/terminals/tml_123/refund":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			paymentSession := payload["paymentSession"].(map[string]any)
+			if paymentSession["id"] != "ps_123" {
+				t.Fatalf("paymentSession.id = %v, want %q", paymentSession["id"], "ps_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123","status":"AwaitingCard"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/in-person/terminals/tml_123/cancel-action":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123","status":"Ready"}`)
+		case r.Method == http.MethodPost && r.URL.Path == "/in-person/terminals/tml_123/confirm-receipt":
+			if got := r.Header.Get("Account"); got != "ac_123" {
+				t.Fatalf("Account header = %q, want %q", got, "ac_123")
+			}
+			payload := decodeJSONBody(t, r)
+			customerCopy := payload["customerCopy"].(map[string]any)
+			if customerCopy["status"] != "Succeeded" {
+				t.Fatalf("customerCopy.status = %v, want %q", customerCopy["status"], "Succeeded")
+			}
+			_, _ = io.WriteString(w, `{"id":"tml_123","status":"ReceiptConfirmed"}`)
+		default:
+			t.Fatalf("unexpected request: %s %s", r.Method, r.URL.String())
+		}
+	})
+
+	ctx := context.Background()
+
+	products, err := client.InPersonProducts.List(ctx, true, 5, "ippd_prev")
+	if err != nil {
+		t.Fatalf("InPersonProducts.List returned error: %v", err)
+	}
+	if len(products.Items) != 1 {
+		t.Fatalf("len(products.Items) = %d, want 1", len(products.Items))
+	}
+
+	product, err := client.InPersonProducts.Get(ctx, "ippd_123")
+	if err != nil {
+		t.Fatalf("InPersonProducts.Get returned error: %v", err)
+	}
+	if product.ID != "ippd_123" {
+		t.Fatalf("product.ID = %q, want %q", product.ID, "ippd_123")
+	}
+
+	skus, err := client.InPersonSkus.List(ctx, "GB", 5, "", "ippd_123")
+	if err != nil {
+		t.Fatalf("InPersonSkus.List returned error: %v", err)
+	}
+	if len(skus.Items) != 1 {
+		t.Fatalf("len(skus.Items) = %d, want 1", len(skus.Items))
+	}
+
+	sku, err := client.InPersonSkus.Get(ctx, "ipsku_123")
+	if err != nil {
+		t.Fatalf("InPersonSkus.Get returned error: %v", err)
+	}
+	if sku.ID != "ipsku_123" {
+		t.Fatalf("sku.ID = %q, want %q", sku.ID, "ipsku_123")
+	}
+
+	orders, err := client.InPersonOrders.ListForAccount(ctx, true, 5, "ipord_prev", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonOrders.ListForAccount returned error: %v", err)
+	}
+	if len(orders.Items) != 1 {
+		t.Fatalf("len(orders.Items) = %d, want 1", len(orders.Items))
+	}
+
+	order, err := client.InPersonOrders.GetForAccount(ctx, "ipord_123", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonOrders.GetForAccount returned error: %v", err)
+	}
+	if order.ID != "ipord_123" {
+		t.Fatalf("order.ID = %q, want %q", order.ID, "ipord_123")
+	}
+
+	location, err := client.InPersonLocations.CreateForAccount(ctx, CreateInPersonLocationRequest{
+		Name: "Store 1",
+		Address: InPersonLocationAddress{
+			FirstLine:  "1 Main St",
+			City:       "London",
+			PostalCode: "SW1A 1AA",
+			Country:    "GB",
+		},
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonLocations.CreateForAccount returned error: %v", err)
+	}
+	if location.ID != "iploc_123" {
+		t.Fatalf("location.ID = %q, want %q", location.ID, "iploc_123")
+	}
+
+	locations, err := client.InPersonLocations.ListForAccount(ctx, true, 5, "iploc_prev", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonLocations.ListForAccount returned error: %v", err)
+	}
+	if len(locations.Items) != 1 {
+		t.Fatalf("len(locations.Items) = %d, want 1", len(locations.Items))
+	}
+
+	gotLocation, err := client.InPersonLocations.GetForAccount(ctx, "iploc_123", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonLocations.GetForAccount returned error: %v", err)
+	}
+	if gotLocation.ID != "iploc_123" {
+		t.Fatalf("gotLocation.ID = %q, want %q", gotLocation.ID, "iploc_123")
+	}
+
+	updatedLocation, err := client.InPersonLocations.UpdateForAccount(ctx, "iploc_123", UpdateInPersonLocationRequest{
+		Name: "Store 1A",
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonLocations.UpdateForAccount returned error: %v", err)
+	}
+	if updatedLocation.Name != "Store 1A" {
+		t.Fatalf("updatedLocation.Name = %q, want %q", updatedLocation.Name, "Store 1A")
+	}
+
+	deletedLocation, err := client.InPersonLocations.DeleteForAccount(ctx, "iploc_123", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonLocations.DeleteForAccount returned error: %v", err)
+	}
+	if deletedLocation.ID != "iploc_123" {
+		t.Fatalf("deletedLocation.ID = %q, want %q", deletedLocation.ID, "iploc_123")
+	}
+
+	terminal, err := client.InPersonTerminals.CreateForAccount(ctx, CreateTerminalRequest{
+		SerialNumber: "SN-001",
+		LocationID:   "iploc_123",
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.CreateForAccount returned error: %v", err)
+	}
+	if terminal.ID != "tml_123" {
+		t.Fatalf("terminal.ID = %q, want %q", terminal.ID, "tml_123")
+	}
+
+	terminals, err := client.InPersonTerminals.ListForAccount(ctx, true, 5, "tml_prev", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.ListForAccount returned error: %v", err)
+	}
+	if len(terminals.Items) != 1 {
+		t.Fatalf("len(terminals.Items) = %d, want 1", len(terminals.Items))
+	}
+
+	gotTerminal, err := client.InPersonTerminals.GetForAccount(ctx, "tml_123", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.GetForAccount returned error: %v", err)
+	}
+	if gotTerminal.ID != "tml_123" {
+		t.Fatalf("gotTerminal.ID = %q, want %q", gotTerminal.ID, "tml_123")
+	}
+
+	updatedTerminal, err := client.InPersonTerminals.UpdateForAccount(ctx, "tml_123", UpdateTerminalRequest{
+		Name: "Front Desk",
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.UpdateForAccount returned error: %v", err)
+	}
+	if updatedTerminal.Name != "Front Desk" {
+		t.Fatalf("updatedTerminal.Name = %q, want %q", updatedTerminal.Name, "Front Desk")
+	}
+
+	paymentTerminal, err := client.InPersonTerminals.InitiatePaymentForAccount(ctx, "tml_123", TerminalPaymentRequest{
+		Amounts:  RequestedAmounts{Requested: 1200},
+		Currency: "GBP",
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.InitiatePaymentForAccount returned error: %v", err)
+	}
+	if paymentTerminal.Status != "AwaitingCard" {
+		t.Fatalf("paymentTerminal.Status = %q, want %q", paymentTerminal.Status, "AwaitingCard")
+	}
+
+	refundTerminal, err := client.InPersonTerminals.InitiateRefundForAccount(ctx, "tml_123", TerminalRefundRequest{
+		PaymentSession: TerminalRefundPaymentSessionReference{ID: "ps_123"},
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.InitiateRefundForAccount returned error: %v", err)
+	}
+	if refundTerminal.Status != "AwaitingCard" {
+		t.Fatalf("refundTerminal.Status = %q, want %q", refundTerminal.Status, "AwaitingCard")
+	}
+
+	cancelledTerminal, err := client.InPersonTerminals.CancelActionForAccount(ctx, "tml_123", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.CancelActionForAccount returned error: %v", err)
+	}
+	if cancelledTerminal.Status != "Ready" {
+		t.Fatalf("cancelledTerminal.Status = %q, want %q", cancelledTerminal.Status, "Ready")
+	}
+
+	confirmedTerminal, err := client.InPersonTerminals.ConfirmReceiptForAccount(ctx, "tml_123", TerminalConfirmReceiptRequest{
+		CustomerCopy: &ReceiptCopyStatus{Status: "Succeeded"},
+	}, "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.ConfirmReceiptForAccount returned error: %v", err)
+	}
+	if confirmedTerminal.Status != "ReceiptConfirmed" {
+		t.Fatalf("confirmedTerminal.Status = %q, want %q", confirmedTerminal.Status, "ReceiptConfirmed")
+	}
+
+	deletedTerminal, err := client.InPersonTerminals.DeleteForAccount(ctx, "tml_123", "ac_123")
+	if err != nil {
+		t.Fatalf("InPersonTerminals.DeleteForAccount returned error: %v", err)
+	}
+	if deletedTerminal.ID != "tml_123" {
+		t.Fatalf("deletedTerminal.ID = %q, want %q", deletedTerminal.ID, "tml_123")
+	}
+}
+
 func TestPersonsAndPayoutMethodsMethods(t *testing.T) {
 	t.Parallel()
 
